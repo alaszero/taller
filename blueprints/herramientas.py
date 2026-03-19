@@ -73,8 +73,11 @@ def api_devolucion(id_prestamo):
     rows  = _data.tfiltered_dict("MOV_HERRA", {"ID_Prestamo": id_prestamo})
     if not rows:
         abort(404, "Prestamo no encontrado")
-    rowid = rows[0]["_idx"]
-    id_herramienta = rows[0].get("ID_Herramienta", "")
-    _data.raw_tabla_update("MOV_HERRA", rowid, "FechaDevolucion", fecha)
+    row = rows[0]
+    id_herramienta = row.get("ID_Herramienta", "")
+    # Usar tupdate_pk (backend-agnostic) en vez de raw_tabla_update que requiere _idx
+    _data.tupdate_pk("MOV_HERRA", "ID_Prestamo", id_prestamo, {
+        "FechaDevolucion": fecha
+    })
     _data._sync_herramienta_estado(id_herramienta)
     return jsonify({"ok": True})

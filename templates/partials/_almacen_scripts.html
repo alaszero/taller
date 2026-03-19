@@ -417,8 +417,18 @@ async function abrirModalMovimiento(tipo) {
   initAC('movOrigBuscar', 'movOrigDrop', 'movUbicOrigen', ubicItems, ubicLabel, u => u.ID_Ubic, null);
   initAC('movDestBuscar', 'movDestDrop', 'movUbicDestino', ubicItems, ubicLabel, u => u.ID_Ubic, null);
 
-  // Tipo: actualizar stock info al cambiar
-  document.getElementById('movTipo').onchange = actualizarStockInfo;
+  // Tipo: limpiar carrito y actualizar stock al cambiar
+  document.getElementById('movTipo').onchange = () => {
+    _movCarrito = [];
+    _movMatObj  = null;
+    renderCarrito();
+    document.getElementById('movMaterial').value = '';
+    document.getElementById('movMatBuscar').value = '';
+    document.getElementById('movCantidad').value = '';
+    document.getElementById('movUnidad').value = '';
+    document.getElementById('movStockInfo').classList.add('d-none');
+    actualizarStockInfo();
+  };
 
   flatpickr('#movFecha', {locale:'es', defaultDate:'today', dateFormat:'Y-m-d'});
   const _modalMov = new bootstrap.Modal(document.getElementById('modalMovimiento'));
