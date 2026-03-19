@@ -1,0 +1,80 @@
+{# Partial: nav items del sidebar (incluido en desktop y offcanvas mobile) #}
+{% if current_user and 'dashboard' in current_user.secciones %}
+<a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">
+  <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
+</a>
+{% endif %}
+{% if current_user and 'almacen' in current_user.secciones %}
+<a href="/almacen" class="nav-item {% if '/almacen' in request.path %}active{% endif %}">
+  <i class="bi bi-box-seam"></i> <span>Almacén</span>
+</a>
+{% endif %}
+{% if current_user and 'herramientas' in current_user.secciones %}
+<a href="/herramientas" class="nav-item {% if '/herramientas' in request.path %}active{% endif %}">
+  <i class="bi bi-wrench-adjustable"></i> <span>Herramientas</span>
+</a>
+{% endif %}
+{% if current_user and 'proyectos' in current_user.secciones %}
+<a href="/proyectos" class="nav-item {% if '/proyectos' in request.path %}active{% endif %}">
+  <i class="bi bi-kanban"></i> <span>Proyectos</span>
+</a>
+{% endif %}
+{% if current_user and 'avance' in current_user.secciones %}
+<a href="/avance" class="nav-item {% if '/avance' in request.path %}active{% endif %}">
+  <i class="bi bi-graph-up"></i> <span>Avance de Obras</span>
+</a>
+{% endif %}
+{% if current_user and 'empleados' in current_user.secciones %}
+<a href="/empleados" class="nav-item {% if '/empleados' in request.path %}active{% endif %}">
+  <i class="bi bi-people"></i> <span>Empleados</span>
+</a>
+{% endif %}
+{% if current_user and 'implementacion' in current_user.secciones %}
+<a href="/implementacion" class="nav-item {% if '/implementacion' in request.path %}active{% endif %}">
+  <i class="bi bi-journal-bookmark"></i> <span>Implementación</span>
+</a>
+{% endif %}
+{% if current_user and 'admin' in current_user.secciones %}
+<a href="/admin" class="nav-item {% if '/admin' in request.path %}active{% endif %}" style="color:#f87171;">
+  <i class="bi bi-shield-exclamation"></i> <span>Administración</span>
+</a>
+{% endif %}
+{% if current_user and current_user.nivel in ('yekflow', 'superusuario') %}
+<a href="/admin#cardAuditoria" class="nav-item" style="color:#94a3b8;">
+  <i class="bi bi-journal-text"></i> <span>Auditoría</span>
+</a>
+{% endif %}
+{% if current_user and current_user.nivel == 'yekflow' %}
+<a href="/admin#talleres" class="nav-item {% if request.path == '/admin' and request.args.get('tab') == 'talleres' %}active{% endif %}" style="color:#f0a500;">
+  <i class="bi bi-shop-window"></i> <span>Talleres</span>
+</a>
+<hr style="border-color:#334155;margin:.5rem 0;">
+<div class="px-2 pb-1">
+  <small class="text-muted" style="font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;">Taller activo</small>
+  <select class="form-select form-select-sm mt-1 sidebarTallerSelect"
+          style="background:#1e293b;border-color:#334155;color:#e2e8f0;font-size:.8rem;"
+          onchange="switchTaller(this.value)">
+    <option value="__all__">🌐 Vista Global</option>
+  </select>
+</div>
+<script>
+if(!window._sidebarTallerCargado){
+  window._sidebarTallerCargado = true;
+  document.addEventListener('DOMContentLoaded', async function(){
+    try{
+      const r = await fetch('/api/talleres');
+      const talleres = await r.json();
+      const tid = '{{ current_taller_id }}';
+      document.querySelectorAll('.sidebarTallerSelect').forEach(sel=>{
+        talleres.filter(t=>t.activo!=0).forEach(t=>{
+          const op = document.createElement('option');
+          op.value = t.id; op.textContent = '🏪 '+t.nombre;
+          sel.appendChild(op);
+        });
+        sel.value = tid || '__all__';
+      });
+    }catch(e){}
+  });
+}
+</script>
+{% endif %}

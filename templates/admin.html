@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Administración{% endblock %}
+{% block page_title %}Administración del Sistema{% endblock %}
+
+{% block content %}
+
+{% include 'partials/_admin_usuarios.html' %}
+{% include 'partials/_admin_reset_backup.html' %}
+{% include 'partials/_admin_auditoria.html' %}
+{% include 'partials/_admin_alertas.html' %}
+{% include 'partials/_admin_talleres.html' %}
+
+{% endblock %}

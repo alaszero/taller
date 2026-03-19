@@ -1,0 +1,35 @@
+  <!-- Movimientos -->
+  <div class="tab-pane fade" id="tabMovimientos">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+          <span>Registro de movimientos</span>
+          <select class="form-select form-select-sm w-auto" id="filtroTipoMov" onchange="renderMovimientos()">
+            <option value="">Todos</option>
+            <option>Entrada</option>
+            <option>Salida</option>
+            <option>Traslado</option>
+          </select>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="cargarMovimientos()" title="Actualizar">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-primary" onclick="seleccionarTipoMovimiento()">
+            <i class="bi bi-plus-lg me-1"></i>Nuevo movimiento
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover dt-table" id="tablaMovimientos">
+            <thead><tr>
+              <th>Fecha</th><th>Hora</th><th>Folio</th><th>Material</th><th>Tipo</th><th>Cantidad</th>
+              <th>Proyecto</th><th>Mueble</th><th>Responsable</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>

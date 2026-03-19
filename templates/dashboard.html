@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Taller{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="kpi-card kpi-danger">
+      <div class="kpi-icon"><i class="bi bi-exclamation-triangle"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value" id="kpiAlertas">—</div>
+        <div class="kpi-label">Alertas de Stock</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="kpi-card kpi-warning">
+      <div class="kpi-icon"><i class="bi bi-wrench-adjustable"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value" id="kpiHerr">—</div>
+        <div class="kpi-label">Herramientas Prestadas</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="kpi-card kpi-primary">
+      <div class="kpi-icon"><i class="bi bi-kanban"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value" id="kpiProy">—</div>
+        <div class="kpi-label">Proyectos Activos</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="kpi-card kpi-success">
+      <div class="kpi-icon"><i class="bi bi-check2-circle"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value" id="kpiHoy">—</div>
+        <div class="kpi-label">Registros Hoy</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Progreso de obras + Alertas de stock -->
+<div class="row g-3 mb-3">
+
+  <!-- Progreso de obras activas (primero en móvil) -->
+  <div class="col-lg-6" id="secProgreso" style="display:none;">
+    <div class="card" style="height:420px; display:flex; flex-direction:column;">
+      <div class="card-header d-flex justify-content-between align-items-center flex-shrink-0">
+        <span><i class="bi bi-kanban text-primary me-2"></i>Progreso de obras activas</span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="imprimirProgresoObras()" title="Imprimir resumen de avance">
+            <i class="bi bi-printer"></i>
+          </button>
+          <a href="/avance/resumen" class="btn btn-sm btn-outline-success">Dashboard</a>
+          <a href="/proyectos" class="btn btn-sm btn-outline-primary">Ver proyectos</a>
+        </div>
+      </div>
+      <div class="card-body" style="overflow-y:auto; flex:1; min-height:0;">
+        <div class="d-flex flex-column gap-3" id="progresoCards"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Placeholder cuando no hay progreso -->
+  <div class="col-lg-6" id="secProgresoVacio">
+    <div class="card" style="height:420px; display:flex; flex-direction:column;">
+      <div class="card-header flex-shrink-0">
+        <span><i class="bi bi-kanban text-muted me-2"></i>Progreso de obras activas</span>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center text-muted">
+        <div class="text-center">
+          <i class="bi bi-kanban fs-1 opacity-25 d-block mb-2"></i>
+          Sin obras activas en este momento
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alertas de stock (segundo en móvil) -->
+  <div class="col-lg-6">
+    <div class="card" style="height:420px; display:flex; flex-direction:column;">
+      <div class="card-header d-flex justify-content-between align-items-center flex-shrink-0">
+        <span><i class="bi bi-exclamation-circle text-danger me-2"></i>Alertas de stock</span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="imprimirAlertasStock()" title="Imprimir reporte de alertas">
+            <i class="bi bi-printer"></i>
+          </button>
+          <a href="/almacen" class="btn btn-sm btn-outline-primary">Ver almacén</a>
+        </div>
+      </div>
+      <div class="card-body p-0" style="overflow-y:auto; flex:1; min-height:0;">
+        <table class="table table-sm table-hover mb-0" id="tablaAlertas">
+          <thead style="position:sticky; top:0; z-index:2;">
+            <tr><th></th><th>Material</th><th>Stock</th><th>Mínimo</th><th>Unidad</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Últimos movimientos (ancho completo, al fondo) -->
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-arrow-left-right text-secondary me-2"></i>Últimos movimientos de material</span>
+        <a href="/almacen" class="btn btn-sm btn-outline-secondary">Ver todos</a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0" id="tablaMovs">
+            <thead><tr><th>Fecha</th><th>Hora</th><th>Material</th><th>Tipo</th><th>Cant.</th><th>Proyecto</th><th>Responsable</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* Cabecera fija dentro del contenedor scrollable */
+#tablaAlertas thead th {
+  background: var(--bs-body-bg, #fff);
+  border-bottom: 2px solid var(--bs-border-color, #dee2e6);
+}
+[data-bs-theme="dark"] #tablaAlertas thead th {
+  background: #1e2a36;
+}
+</style>
+<script>
+let _dashAlertas  = [];
+let _dashProgreso = [];
+
+function imprimirAlertasStock() {
+  if (!_dashAlertas.length) return alert('No hay alertas de stock en este momento.');
+  const today = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+  const sinStock  = _dashAlertas.filter(a => a.Nivel === 'danger');
+  const bajoMin   = _dashAlertas.filter(a => a.Nivel === 'warning');
+
+  const nivelLabel = n => n === 'danger' ? 'SIN STOCK'  : 'BAJO MÍN.';
+  const nivelColor = n => n === 'danger' ? '#dc3545'    : '#fd7e14';
+
+  const rows = [...sinStock, ...bajoMin].map(a => {
+    const diff  = (parseFloat(a.Stock_actual) - parseFloat(a.Stock_min)).toFixed(2);
+    const color = nivelColor(a.Nivel);
+    return `<tr>
+      <td style="text-align:center;color:${color};font-size:12pt;">●</td>
+      <td>${a.Codigo_mat}</td>
+      <td>${a.Descripcion}</td>
+      <td style="text-align:center;">${a.Unidad}</td>
+      <td style="text-align:center;font-weight:700;color:${color};">${a.Stock_actual}</td>
+      <td style="text-align:center;">${a.Stock_min}</td>
+      <td style="text-align:center;font-weight:700;color:${color};">${diff}</td>
+      <td style="font-weight:700;color:${color};">${nivelLabel(a.Nivel)}</td>
+      <td class="campo"></td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Alertas de Stock — ${today}</title>
+<style>
+  @page { size: A4 portrait; margin: 10mm 16mm 15mm 16mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:9pt; color:#000; }
+  .logo-space { height:24mm; border-bottom:2.5px solid #000; margin-bottom:7pt; }
+  .doc-header { display:flex; justify-content:space-between; align-items:flex-end;
+    margin-bottom:7pt; }
+  .doc-header h1 { font-size:13pt; margin-bottom:2pt; }
+  .doc-header p  { font-size:8pt; color:#555; }
+  .doc-meta { text-align:right; font-size:8pt; line-height:1.8; }
+  .linea { display:inline-block; border-bottom:1px solid #000; min-width:90pt; margin-left:3pt; }
+  .resumen { display:flex; gap:20pt; font-size:8pt; margin-bottom:8pt; padding:4pt 8pt;
+    background:#fff3cd; border:1px solid #ffc107; border-radius:2pt; }
+  table { width:100%; border-collapse:collapse; margin-bottom:6pt; }
+  th { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    background:#f0f0f0; border:1px solid #aaa; padding:2pt 4pt; }
+  td { border:1px solid #ccc; height:18pt; vertical-align:middle; font-size:8.5pt; padding-left:4pt; }
+  td.campo { background:#fafafa; }
+  .firma-row { margin-top:14pt; display:flex; gap:30pt; }
+  .firma-box { flex:1; padding-top:3pt; border-top:1px solid #000; font-size:7.5pt; text-align:center; color:#555; }
+  .firma-barron { margin-top:10pt; padding-top:3pt; border-top:1px solid #ddd;
+    text-align:center; font-size:6.5pt; color:#bbb; letter-spacing:.06em; }
+</style></head><body>
+<div class="logo-space"></div>
+<div class="doc-header">
+  <div>
+    <h1>Reporte de Alertas de Stock</h1>
+    <p>By Barrón · Sistema de Taller &nbsp;·&nbsp; Generado el ${today}</p>
+  </div>
+  <div class="doc-meta">
+    <div>Fecha: <span class="linea">&nbsp;</span></div>
+    <div>Revisó: <span class="linea">&nbsp;</span></div>
+  </div>
+</div>
+<div class="resumen">
+  <span>⚠ Total alertas: <strong>${_dashAlertas.length}</strong></span>
+  <span style="color:#dc3545;">🔴 Sin stock: <strong>${sinStock.length}</strong></span>
+  <span style="color:#fd7e14;">🟡 Bajo mínimo: <strong>${bajoMin.length}</strong></span>
+</div>
+<table>
+  <thead><tr>
+    <th style="width:24px;"></th>
+    <th style="width:64px;">Código</th>
+    <th>Material</th>
+    <th style="width:40px;text-align:center;">Und</th>
+    <th style="width:72px;text-align:center;">Stock actual</th>
+    <th style="width:60px;text-align:center;">Mínimo</th>
+    <th style="width:72px;text-align:center;">Diferencia</th>
+    <th style="width:80px;">Estado</th>
+    <th>Acción / Observaciones</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="firma-row">
+  <div class="firma-box">Revisó / Encargado</div>
+  <div class="firma-box">Acciones tomadas</div>
+  <div class="firma-box">Fecha de seguimiento</div>
+</div>
+<div class="firma-barron">BY BARRÓN &nbsp;·&nbsp; SISTEMA DE GESTIÓN DE TALLER</div>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=800,height=900');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+}
+
+fetch('/api/dashboard').then(r => r.json()).then(d => {
+  document.getElementById('kpiAlertas').textContent = d.alertas_stock;
+  document.getElementById('kpiHerr').textContent    = d.herramientas_prestadas;
+  document.getElementById('kpiProy').textContent    = d.proyectos_activos;
+  document.getElementById('kpiHoy').textContent     = d.registros_hoy;
+
+  // ── Semáforo compartido (sin stock / bajo mínimo / ok) ──
+  function semaforo(a) {
+    const n = a.Nivel || (a.Stock_actual <= 0 ? 'danger' : 'warning');
+    if (n === 'danger')  return { rowClass:'table-danger',  dot:'bg-danger',  label:'Sin stock',    badgeCls:'bg-danger' };
+    if (n === 'warning') return { rowClass:'table-warning', dot:'bg-warning', label:'Bajo mínimo',  badgeCls:'bg-warning text-dark' };
+    return                      { rowClass:'',               dot:'bg-success', label:'OK',           badgeCls:'bg-success' };
+  }
+
+  // ── Alertas de stock ──
+  _dashAlertas = d.alertas_detalle || [];
+  const tbAlertas = document.querySelector('#tablaAlertas tbody');
+  if (!d.alertas_detalle.length) {
+    tbAlertas.innerHTML = '<tr><td colspan="5" class="text-center text-success py-3"><i class="bi bi-check-circle me-1"></i>Sin alertas de stock</td></tr>';
+  } else {
+    // Ordenar: primero sin stock (danger), luego bajo mínimo (warning)
+    const orden = { danger: 0, warning: 1, ok: 2 };
+    const sorted = [...d.alertas_detalle].sort((a,b) =>
+      (orden[a.Nivel||'warning'] ?? 1) - (orden[b.Nivel||'warning'] ?? 1)
+    );
+    const _colorNum = { 'bg-danger':'text-danger', 'bg-warning':'text-warning-emphasis', 'bg-success':'text-success' };
+    tbAlertas.innerHTML = sorted.map(a => {
+      const { dot, label, badgeCls } = semaforo(a);
+      return `<tr>
+        <td class="text-center" style="width:36px;">
+          <span class="badge rounded-pill ${badgeCls} p-1" style="font-size:9px;" title="${label}">●</span>
+        </td>
+        <td>
+          <div class="fw-semibold">${a.Descripcion}</div>
+          <div><code style="font-size:10px;">${a.Codigo_mat}</code></div>
+        </td>
+        <td class="fw-bold ${_colorNum[dot]}">${a.Stock_actual}</td>
+        <td class="text-muted">${a.Stock_min}</td>
+        <td class="text-muted">${a.Unidad}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Últimos movimientos (con nombre de material) ──
+  const tbMovs = document.querySelector('#tablaMovs tbody');
+  if (!d.ultimos_movimientos.length) {
+    tbMovs.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Sin registros</td></tr>';
+  } else {
+    tbMovs.innerHTML = d.ultimos_movimientos.map(m => {
+      const badge = m.Tipo === 'Entrada'
+        ? '<span class="badge bg-success">Entrada</span>'
+        : m.Tipo === 'Salida'
+          ? '<span class="badge bg-warning text-dark">Salida</span>'
+          : '<span class="badge bg-info text-dark">Traslado</span>';
+      return `<tr>
+        <td class="text-muted small">${m.Fecha}</td>
+        <td class="text-muted small">${m.Hora || '—'}</td>
+        <td>${m.Descripcion_mat || m.Codigo_mat}</td>
+        <td>${badge}</td>
+        <td>${m.Cantidad} ${m.Unidad||''}</td>
+        <td>${m.ID_Proyecto || '—'}</td>
+        <td class="text-muted small">${m.Responsable || '—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Progreso de obras ──
+  _dashProgreso = d.progreso_proyectos || [];
+  if (_dashProgreso.length) {
+    document.getElementById('secProgreso').style.display = 'block';
+    document.getElementById('secProgresoVacio').style.display = 'none';
+    document.getElementById('progresoCards').innerHTML = _dashProgreso.map(p => {
+      const pct   = p.pct;
+      const color = pct >= 75 ? 'success' : pct >= 40 ? 'warning' : 'danger';
+      const estadoBadge = p.Estado === 'En proceso'
+        ? 'bg-primary' : p.Estado === 'Iniciado' ? 'bg-info text-dark' : 'bg-secondary';
+      return `
+        <div class="card border-0 shadow-sm">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <h6 class="card-title mb-0 me-2" title="${p.Nombre}">${p.Nombre}</h6>
+              <span class="badge ${estadoBadge} flex-shrink-0">${p.Estado}</span>
+            </div>
+            <div class="text-muted small mb-2">
+              <i class="bi bi-grid me-1"></i>${p.muebles} mueble${p.muebles !== 1 ? 's' : ''}
+              &nbsp;·&nbsp;
+              <i class="bi bi-list-task me-1"></i>${p.ops_total} OPs
+            </div>
+            <div class="d-flex justify-content-between small mb-1">
+              <span class="text-muted">${p.ops_iniciadas} de ${p.ops_total} OPs iniciadas</span>
+              <span class="fw-bold text-${color}">${pct}%</span>
+            </div>
+            <div class="progress" style="height:7px;">
+              <div class="progress-bar bg-${color}" role="progressbar"
+                style="width:${pct}%" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  } else {
+    document.getElementById('secProgreso').style.display = 'none';
+    document.getElementById('secProgresoVacio').style.display = 'block';
+  }
+});
+
+// ── Imprimir resumen de progreso de obras ──────────────────────────────────
+function imprimirProgresoObras() {
+  if (!_dashProgreso.length) return alert('No hay obras activas para imprimir.');
+
+  const now    = new Date();
+  const fecha  = now.toLocaleDateString('es-MX', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+  const hora   = now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const fStamp = fecha + '  ·  ' + hora;
+
+  const nivelColor = pct => pct >= 75 ? '#198754' : pct >= 40 ? '#fd7e14' : '#dc3545';
+  const nivelLabel = pct => pct >= 75 ? 'Avanzado'  : pct >= 40 ? 'En proceso' : 'Inicial';
+
+  const filas = _dashProgreso.map(p => {
+    const col   = nivelColor(p.pct);
+    const lbl   = nivelLabel(p.pct);
+    const barra = `<div style="background:#e9ecef;border-radius:4px;height:10px;width:100%;margin-top:3px;">
+      <div style="background:${col};height:10px;border-radius:4px;width:${p.pct}%;"></div></div>`;
+    return `<tr>
+      <td style="font-weight:600;">${p.Nombre}</td>
+      <td style="text-align:center;">${p.Estado}</td>
+      <td style="text-align:center;">${p.muebles}</td>
+      <td style="text-align:center;">${p.ops_total}</td>
+      <td style="text-align:center;">${p.ops_iniciadas}</td>
+      <td style="text-align:center;font-weight:700;color:${col};">${p.pct}%</td>
+      <td>${barra}<div style="font-size:7pt;color:${col};margin-top:1px;">${lbl}</div></td>
+      <td style="min-width:80pt;"></td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Resumen de Progreso — ${fecha}</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm 15mm 15mm 15mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:9pt; color:#000; }
+  .logo-space { height:22mm; border-bottom:2.5px solid #1F4E79; margin-bottom:7pt; }
+  .doc-header { display:flex; justify-content:space-between; align-items:flex-end;
+    margin-bottom:8pt; }
+  .doc-header h1 { font-size:13pt; margin-bottom:2pt; }
+  .doc-header p  { font-size:8pt; color:#555; }
+  .doc-meta { text-align:right; font-size:8pt; line-height:2; }
+  .linea { display:inline-block; border-bottom:1px solid #000; min-width:100pt; margin-left:4pt; }
+  table { width:100%; border-collapse:collapse; margin-bottom:8pt; }
+  th { font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    background:#1F4E79; color:#fff; padding:4pt 6pt; text-align:left; }
+  th.center { text-align:center; }
+  td { border:1px solid #ccc; vertical-align:middle; padding:4pt 6pt; font-size:8.5pt; }
+  .firma-row { margin-top:14pt; display:flex; gap:30pt; }
+  .firma-box { flex:1; padding-top:3pt; border-top:1px solid #000; font-size:7.5pt;
+    text-align:center; color:#555; }
+  .resumen-strip { display:flex; gap:20pt; font-size:8pt; margin-bottom:8pt; padding:4pt 10pt;
+    background:#e8f0f9; border:1px solid #cce; border-radius:2pt; }
+  .firma-barron { margin-top:10pt; padding-top:3pt; border-top:1px solid #ddd;
+    text-align:center; font-size:6.5pt; color:#bbb; letter-spacing:.06em; }
+</style>
+</head><body>
+<div class="logo-space"></div>
+<div class="doc-header">
+  <div>
+    <h1>Resumen de Progreso de Obras Activas</h1>
+    <p>By Barrón · Sistema de Taller &nbsp;·&nbsp; Generado: ${fStamp}</p>
+  </div>
+  <div class="doc-meta">
+    <div>Revisó: <span class="linea">&nbsp;</span></div>
+    <div>Próxima revisión: <span class="linea">&nbsp;</span></div>
+  </div>
+</div>
+<div class="resumen-strip">
+  <span>Obras activas: <strong>${_dashProgreso.length}</strong></span>
+  <span>Total OPs: <strong>${_dashProgreso.reduce((s,p)=>s+p.ops_total,0)}</strong></span>
+  <span>OPs iniciadas: <strong>${_dashProgreso.reduce((s,p)=>s+p.ops_iniciadas,0)}</strong></span>
+  <span>Promedio avance: <strong>${Math.round(_dashProgreso.reduce((s,p)=>s+p.pct,0)/_dashProgreso.length)}%</strong></span>
+</div>
+<table>
+  <thead><tr>
+    <th style="min-width:120pt;">Obra / Proyecto</th>
+    <th class="center" style="width:70pt;">Estado</th>
+    <th class="center" style="width:50pt;">Muebles</th>
+    <th class="center" style="width:45pt;">Total OPs</th>
+    <th class="center" style="width:60pt;">OPs iniciadas</th>
+    <th class="center" style="width:55pt;">% Avance</th>
+    <th style="min-width:120pt;">Progreso visual</th>
+    <th style="min-width:80pt;">Observaciones</th>
+  </tr></thead>
+  <tbody>${filas}</tbody>
+</table>
+<div class="firma-row">
+  <div class="firma-box">Supervisor / Encargado</div>
+  <div class="firma-box">Acciones del día</div>
+  <div class="firma-box">Fecha próxima revisión</div>
+</div>
+<div class="firma-barron">BY BARRÓN &nbsp;·&nbsp; SISTEMA DE GESTIÓN DE TALLER</div>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=1050,height=750');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+}
+</script>
+{% endblock %}

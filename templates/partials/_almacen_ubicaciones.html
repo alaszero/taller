@@ -1,0 +1,270 @@
+  <!-- Mapa de ubicaciones -->
+  <div class="tab-pane fade" id="tabUbicaciones">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>Mapa de ubicaciones</span>
+        <div class="d-flex align-items-center gap-2">
+          <!-- Selector de vista -->
+          <div class="btn-group btn-group-sm" id="btnVistaUbic" role="group" aria-label="Vista">
+            <button type="button" class="btn btn-outline-secondary active" onclick="setVistaUbic('cards')" title="Tarjetas por ubicación">
+              <i class="bi bi-grid-3x3-gap"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="setVistaUbic('tabla')" title="Tabla de materiales">
+              <i class="bi bi-table"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="setVistaUbic('lista')" title="Lista compacta">
+              <i class="bi bi-list-ul"></i>
+            </button>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="cargarUbicaciones()" title="Actualizar">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-primary" onclick="abrirModalUbicacion()">
+            <i class="bi bi-plus-lg me-1"></i>Nueva ubicación
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row g-3" id="mapaUbicaciones">
+          <div class="col-12 text-center text-muted py-4">
+            <i class="bi bi-geo-alt fs-3 d-block mb-2 opacity-25"></i>
+            Haz clic en la pestaña para cargar el mapa
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- Modal: Selección de tipo de movimiento -->
+<div class="modal fade" id="modalTipoMov" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold">¿Qué tipo de movimiento?</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body d-flex flex-column gap-2 pb-4">
+        <button class="btn btn-outline-success btn-lg text-start" onclick="elegirTipo('Entrada')">
+          <i class="bi bi-box-arrow-in-down me-2"></i>Entrada
+          <small class="d-block text-muted fw-normal mt-1" style="font-size:.8em;">Material entra al taller</small>
+        </button>
+        <button class="btn btn-outline-danger btn-lg text-start" onclick="elegirTipo('Salida')">
+          <i class="bi bi-box-arrow-up me-2"></i>Salida
+          <small class="d-block text-muted fw-normal mt-1" style="font-size:.8em;">Material sale a un proyecto</small>
+        </button>
+        <button class="btn btn-outline-primary btn-lg text-start" onclick="elegirTipo('Traslado')">
+          <i class="bi bi-arrow-left-right me-2"></i>Traslado
+          <small class="d-block text-muted fw-normal mt-1" style="font-size:.8em;">Mueve entre ubicaciones</small>
+        </button>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-start">
+        <button class="btn btn-link btn-sm text-muted p-0" onclick="elegirTipo('')">
+          <i class="bi bi-skip-forward me-1"></i>Elegir después en el formulario
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Registrar Movimiento (multi-ítem con carrito) -->
+<div class="modal fade" id="modalMovimiento" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-arrow-left-right me-2"></i>Registrar Movimiento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- ── ENCABEZADO DE LA ORDEN ── -->
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Fecha *</label>
+            <input type="text" class="form-control datepicker" id="movFecha">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Tipo *</label>
+            <select class="form-select" id="movTipo">
+              <option value="">Seleccionar...</option>
+              <option>Entrada</option>
+              <option>Salida</option>
+              <option>Traslado</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Responsable</label>
+            <div class="ac-wrapper">
+              <input type="text" class="form-control" id="movRespBuscar" placeholder="Buscar responsable..." autocomplete="off">
+              <div class="ac-dropdown" id="movRespDrop"></div>
+            </div>
+            <input type="hidden" id="movResponsable">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Proyecto</label>
+            <div class="ac-wrapper">
+              <input type="text" class="form-control" id="movProyBuscar" placeholder="Buscar proyecto..." autocomplete="off">
+              <div class="ac-dropdown" id="movProyDrop"></div>
+            </div>
+            <input type="hidden" id="movProyecto">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Mueble</label>
+            <div class="input-group">
+              <select class="form-select" id="movMueble">
+                <option value="">— Sin mueble —</option>
+              </select>
+              <button type="button" class="btn btn-outline-secondary" onclick="toggleNuevoMueble()" title="Crear mueble">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+            <div id="nuevoMuebleForm" class="mt-2 d-none">
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control" id="nuevoMuebleNombre" placeholder="Nombre del mueble">
+                <button type="button" class="btn btn-success" onclick="crearMueble()" title="Guardar">
+                  <i class="bi bi-check-lg"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" onclick="cerrarNuevoMueble()" title="Cancelar">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Ubic. Origen</label>
+            <div class="ac-wrapper">
+              <input type="text" class="form-control" id="movOrigBuscar" placeholder="Buscar ubicación..." autocomplete="off">
+              <div class="ac-dropdown" id="movOrigDrop"></div>
+            </div>
+            <input type="hidden" id="movUbicOrigen">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Ubic. Destino</label>
+            <div class="ac-wrapper">
+              <input type="text" class="form-control" id="movDestBuscar" placeholder="Buscar ubicación..." autocomplete="off">
+              <div class="ac-dropdown" id="movDestDrop"></div>
+            </div>
+            <input type="hidden" id="movUbicDestino">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Observaciones</label>
+            <input type="text" class="form-control" id="movObs" placeholder="Notas adicionales para la orden...">
+          </div>
+        </div>
+
+        <!-- ── AGREGAR MATERIALES AL LISTADO ── -->
+        <hr class="my-3">
+        <p class="fw-semibold text-uppercase small text-muted mb-2">
+          <i class="bi bi-box-seam me-1"></i>Materiales de la orden
+        </p>
+        <div class="row g-2 align-items-end mb-2">
+          <div class="col-md-6">
+            <label class="form-label">Material *</label>
+            <div class="ac-wrapper">
+              <input type="text" class="form-control" id="movMatBuscar" placeholder="Escribe código o nombre..." autocomplete="off">
+              <div class="ac-dropdown" id="movMatDrop"></div>
+            </div>
+            <input type="hidden" id="movMaterial">
+            <div id="movStockInfo" class="mt-1 d-none rounded px-2 py-1" style="background:rgba(0,0,0,.05)">
+              <span class="small text-muted">Stock disponible:</span>
+              <span id="movStockVal" class="fw-bold ms-1"></span>
+              <span id="movStockUnd" class="text-muted small ms-1"></span>
+              <span id="movStockAlerta" class="small ms-2"></span>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Cantidad *</label>
+            <input type="number" class="form-control" id="movCantidad" min="0.01" step="1">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Unidad</label>
+            <input type="text" class="form-control bg-light" id="movUnidad" readonly>
+          </div>
+          <div class="col-md-1">
+            <button type="button" class="btn btn-outline-primary w-100" onclick="agregarAlCarrito()" title="Agregar al listado">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Carrito -->
+        <div id="movCarritoVacio" class="text-center text-muted py-3 border rounded small">
+          <i class="bi bi-inbox opacity-50 me-1"></i>Sin materiales — agrega al menos uno para poder registrar
+        </div>
+        <table class="table table-sm table-bordered mb-0" id="movCarritoTable" style="display:none;">
+          <thead class="table-secondary">
+            <tr>
+              <th style="width:32px">#</th>
+              <th style="width:90px">Código</th>
+              <th>Material</th>
+              <th style="width:80px;text-align:center">Cantidad</th>
+              <th style="width:70px">Unidad</th>
+              <th style="width:36px"></th>
+            </tr>
+          </thead>
+          <tbody id="movCarritoTbody"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarMovimiento()" id="btnGuardarMov">
+          <i class="bi bi-save me-1"></i>Registrar 0 materiales
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Crear / Editar Ubicación -->
+<div class="modal fade" id="modalUbicacion" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ubicModalTitle"><i class="bi bi-geo-alt me-2"></i>Nueva Ubicación</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <!-- ID generado automáticamente -->
+          <div class="col-12">
+            <label class="form-label fw-semibold">ID generado</label>
+            <input type="text" class="form-control font-monospace fw-bold text-primary bg-light"
+              id="ubicIDPreview" readonly placeholder="Completa zona, estante y nivel…">
+            <div class="form-text" id="ubicIDEditNote" style="display:none">
+              <i class="bi bi-info-circle me-1 text-warning"></i>
+              El ID no se puede modificar para preservar el historial de movimientos.
+            </div>
+          </div>
+          <!-- Zona -->
+          <div class="col-4">
+            <label class="form-label">Zona *</label>
+            <input type="text" class="form-control text-uppercase" id="ubicZona"
+              placeholder="A / B / BODA" maxlength="12" oninput="actualizarIDUbic()">
+          </div>
+          <!-- Estante / Rack -->
+          <div class="col-4">
+            <label class="form-label">Estante / Rack *</label>
+            <input type="text" class="form-control text-uppercase" id="ubicEstante"
+              placeholder="R01 / E02" maxlength="10" oninput="actualizarIDUbic()">
+          </div>
+          <!-- Nivel -->
+          <div class="col-4">
+            <label class="form-label">Nivel *</label>
+            <input type="number" class="form-control" id="ubicNivel"
+              min="1" max="99" placeholder="1" oninput="actualizarIDUbic()">
+          </div>
+          <!-- Descripción -->
+          <div class="col-12">
+            <label class="form-label">Descripción</label>
+            <input type="text" class="form-control" id="ubicDesc"
+              placeholder="p.ej. Tableros MDF y aglomerado">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarUbicacion()">
+          <i class="bi bi-save me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Empleados{% endblock %}
+{% block page_title %}Gestión de Empleados{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-people me-2"></i>Directorio de empleados</span>
+    <button class="btn btn-sm btn-primary" onclick="abrirModalEmpleado()">
+      <i class="bi bi-person-plus me-1"></i>Agregar empleado
+    </button>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover dt-table" id="tablaEmpleados">
+        <thead><tr>
+          <th>ID</th><th>Nombre</th><th>Alias</th><th>Área</th><th>Puesto</th>
+          <th>Especialidad</th><th>Nivel</th><th>Ingreso</th>
+          <th>$/Hora</th><th>Costo Real</th><th>Activo</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Empleado -->
+<div class="modal fade" id="modalEmpleado" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Agregar Empleado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-4"><label class="form-label">ID Empleado</label>
+            <div class="input-group">
+              <input type="text" class="form-control font-monospace" id="empID" readonly
+                title="Código generado automáticamente">
+              <span class="input-group-text text-muted"><i class="bi bi-magic"></i></span>
+            </div>
+          </div>
+          <div class="col-4"><label class="form-label">Nombre *</label>
+            <input type="text" class="form-control" id="empNombre">
+          </div>
+          <div class="col-4"><label class="form-label">Apellido *</label>
+            <input type="text" class="form-control" id="empApellido">
+          </div>
+          <div class="col-4"><label class="form-label">Alias</label>
+            <input type="text" class="form-control" id="empAlias">
+          </div>
+          <div class="col-4"><label class="form-label">Área</label>
+            <select class="form-select" id="empArea">
+              <option>Carpintería</option><option>Lacado</option><option>Administración</option>
+            </select>
+          </div>
+          <div class="col-4"><label class="form-label">Puesto</label>
+            <select class="form-select" id="empPuesto">
+              <option>Carpintero</option><option>Laqueador</option>
+              <option>Supervisor</option><option>Ayudante</option>
+            </select>
+          </div>
+          <div class="col-4"><label class="form-label">Especialidad</label>
+            <input type="text" class="form-control" id="empEsp">
+          </div>
+          <div class="col-4"><label class="form-label">Nivel (1–5)</label>
+            <select class="form-select" id="empNivel">
+              <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+            </select>
+          </div>
+          <div class="col-4"><label class="form-label">Fecha ingreso</label>
+            <input type="text" class="form-control datepicker" id="empFecha">
+          </div>
+          <div class="col-4"><label class="form-label">Salario/hora $</label>
+            <input type="number" class="form-control" id="empSalario" min="0" step="0.5">
+          </div>
+          <div class="col-4"><label class="form-label">Costo real/hora $</label>
+            <input type="number" class="form-control" id="empCosto" min="0" step="0.5">
+          </div>
+          <div class="col-4"><label class="form-label">Supervisor</label>
+            <select class="form-select" id="empSupervisor"></select>
+          </div>
+          <div class="col-12"><label class="form-label">Observaciones</label>
+            <input type="text" class="form-control" id="empObs">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarEmpleado()">
+          <i class="bi bi-save me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let empleados = [];
+
+async function cargarEmpleados() {
+  empleados = await fetch('/api/empleados').then(r=>r.json()).catch(()=>[]);
+  destroyDT('#tablaEmpleados');
+  const tb = $('#tablaEmpleados tbody'); tb.empty();
+  empleados.forEach(e => {
+    const activo = e.Activo==='Sí' || e.Activo==='Si'
+      ? '<span class="badge bg-success">Activo</span>'
+      : '<span class="badge bg-secondary">Inactivo</span>';
+    const nivel = '★'.repeat(parseInt(e.NivelExperiencia)||0) + '☆'.repeat(5-(parseInt(e.NivelExperiencia)||0));
+    tb.append(`<tr>
+      <td><code>${e.EmpleadoID}</code></td>
+      <td>${e.Nombre} ${e.Apellido}</td>
+      <td><em>${e.Alias||'—'}</em></td>
+      <td>${e.Area}</td>
+      <td>${e.Puesto}</td>
+      <td>${e.Especialidad}</td>
+      <td title="${e.NivelExperiencia}/5" style="letter-spacing:-2px;">${nivel}</td>
+      <td>${e.FechaIngreso}</td>
+      <td>$${parseFloat(e.SalarioHora||0).toFixed(0)}</td>
+      <td>$${parseFloat(e.CostoHoraReal||0).toFixed(0)}</td>
+      <td>${activo}</td>
+    </tr>`);
+  });
+  initDT('#tablaEmpleados');
+}
+
+async function abrirModalEmpleado() {
+  const idEl = document.getElementById('empID');
+  idEl.value = '…';
+  fetchNextCode('EMP').then(code => { idEl.value = code; });
+  // Limpiar campos
+  ['empNombre','empApellido','empAlias'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const supervisores = empleados.filter(e=>e.Puesto==='Supervisor');
+  poblarSelect('empSupervisor', supervisores, 'EmpleadoID',
+    e=>`${e.EmpleadoID} — ${e.Nombre} ${e.Apellido}`, '— Sin supervisor —');
+  flatpickr('#empFecha', {locale:'es', defaultDate:'today', dateFormat:'Y-m-d'});
+  new bootstrap.Modal(document.getElementById('modalEmpleado')).show();
+}
+
+async function guardarEmpleado() {
+  const payload = {
+    EmpleadoID: document.getElementById('empID').value,
+    Nombre: document.getElementById('empNombre').value,
+    Apellido: document.getElementById('empApellido').value,
+    Alias: document.getElementById('empAlias').value,
+    Area: document.getElementById('empArea').value,
+    Puesto: document.getElementById('empPuesto').value,
+    Especialidad: document.getElementById('empEsp').value,
+    NivelExperiencia: document.getElementById('empNivel').value,
+    FechaIngreso: document.getElementById('empFecha').value,
+    SalarioHora: document.getElementById('empSalario').value,
+    CostoHoraReal: document.getElementById('empCosto').value,
+    Activo: 'Sí',
+    SupervisorID: document.getElementById('empSupervisor').value,
+    Observaciones: document.getElementById('empObs').value,
+  };
+  if (!payload.EmpleadoID||!payload.Nombre) return showToast('Completa los campos requeridos','danger');
+  await fetch('/api/empleados', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  bootstrap.Modal.getInstance(document.getElementById('modalEmpleado')).hide();
+  showToast('Empleado agregado','success');
+  cargarEmpleados();
+}
+
+cargarEmpleados();
+</script>
+{% endblock %}

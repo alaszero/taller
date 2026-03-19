@@ -1,0 +1,425 @@
+<script>
+let proyectos=[], muebles=[], ordenes=[], etapas=[], empleados=[];
+// IDs de edición activa (null = modo nuevo)
+let _editPrj=null, _editMue=null, _editOP=null;
+
+// ── Carga ──
+async function cargarDatos() {
+  const safe = url => fetch(url).then(r=>r.json()).catch(()=>[]);
+  [proyectos, muebles, ordenes, etapas, empleados] = await Promise.all([
+    safe('/api/proyectos'), safe('/api/muebles'), safe('/api/ordenes'),
+    safe('/api/etapas'),    safe('/api/empleados'),
+  ]);
+  renderProyectos(); renderMuebles(muebles); renderOP(ordenes);
+  // Poblar filtro proyecto en tab Muebles
+  const fp = document.getElementById('filtroProyecto');
+  const prevFP = fp.value;
+  fp.innerHTML = '<option value="">Todos los proyectos</option>';
+  proyectos.forEach(p => fp.innerHTML += `<option value="${p.ID_Proyecto}">${p.ID_Proyecto} — ${p.Nombre_Obra}</option>`);
+  fp.value = prevFP;
+  // Poblar filtro obra en tab OP
+  const fo = document.getElementById('filtroObraOP');
+  const prevFO = fo.value;
+  fo.innerHTML = '<option value="">Todas las obras</option>';
+  proyectos.forEach(p => fo.innerHTML += `<option value="${p.ID_Proyecto}">${p.ID_Proyecto} — ${p.Nombre_Obra}</option>`);
+  fo.value = prevFO;
+}
+
+// ── Helpers ──
+function estadoBadge(est) {
+  const m = {'En proceso':'primary','Planeado':'info text-dark','Completado':'success','Pausado':'secondary'};
+  return `<span class="badge bg-${m[est]||'secondary'}">${est||'—'}</span>`;
+}
+function nombreEmp(id) {
+  const e = empleados.find(x=>x.EmpleadoID===id);
+  return e ? `${e.Nombre} ${e.Apellido}` : (id||'—');
+}
+function editBtn(onclick) {
+  return `<button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="${onclick}" title="Editar">
+    <i class="bi bi-pencil"></i></button>`;
+}
+function initDatepickers() {
+  document.querySelectorAll('.modal.show .form-control:not([data-fp])').forEach(el => {
+    if (el.id && (el.id.includes('Ini') || el.id.includes('Fin') || el.id.includes('prjInicio') || el.id.includes('prjFin'))) {
+      if (!el._fp) el._fp = flatpickr(el, {locale:'es', dateFormat:'Y-m-d', allowInput:true});
+    }
+  });
+}
+
+// ── Render Proyectos ──
+function renderProyectos() {
+  destroyDT('#tablaProyectos');
+  document.querySelector('#tablaProyectos tbody').innerHTML = proyectos.map(p => `<tr>
+    <td><code>${p.ID_Proyecto}</code></td>
+    <td>${p.Cliente||'—'}</td>
+    <td>${p.Nombre_Obra||'—'}</td>
+    <td>${p.Inicio||'—'}</td>
+    <td>${p.Fin||'—'}</td>
+    <td>${nombreEmp(p.Encargado)}</td>
+    <td>${estadoBadge(p.Estado)}</td>
+    <td class="text-end">${editBtn(`abrirModalProyecto('${p.ID_Proyecto}')`)}</td>
+  </tr>`).join('');
+  initDT('#tablaProyectos');
+}
+
+// ── Render Muebles ──
+function renderMuebles(data) {
+  destroyDT('#tablaMuebles');
+  document.querySelector('#tablaMuebles tbody').innerHTML = data.map(m => `<tr>
+    <td><code>${m.ID_Mueble}</code></td>
+    <td>${m.ID_Proyecto||'—'}</td>
+    <td>${m.Mueble||'—'}</td>
+    <td>${m.Cantidad||'—'}</td>
+    <td>${m.Tipo||'—'}</td>
+    <td>${m.Area||'—'}</td>
+    <td>${m['Observación']||'—'}</td>
+    <td class="text-end">${editBtn(`abrirModalMueble('${m.ID_Mueble}')`)}</td>
+  </tr>`).join('');
+  initDT('#tablaMuebles');
+}
+
+function filtrarMuebles() {
+  const val = document.getElementById('filtroProyecto').value;
+  renderMuebles(val ? muebles.filter(m=>m.ID_Proyecto===val) : muebles);
+}
+
+// ── Render OPs ──
+function renderOP(data) {
+  destroyDT('#tablaOP');
+  document.querySelector('#tablaOP tbody').innerHTML = data.map(o => {
+    const mue  = muebles.find(m=>m.ID_Mueble===o.ID_Mueble)||{Mueble:o.ID_Mueble, ID_Proyecto:''};
+    const prj  = proyectos.find(p=>p.ID_Proyecto===mue.ID_Proyecto);
+    const prjNombre = prj ? prj.Nombre_Obra : (mue.ID_Proyecto||'—');
+    return `<tr>
+      <td><code>${o.ID_OP}</code></td>
+      <td><small class="text-muted">${prjNombre}</small></td>
+      <td>${mue.Mueble||o.ID_Mueble}</td>
+      <td>${o.Etapa||'—'}</td>
+      <td>${o.Cantidad||'—'}</td>
+      <td>${o.FechaInicioPlaneada||'—'}</td>
+      <td>${o.FechaFinalPlaneada||'—'}</td>
+      <td>${o.FechaInicioReal||'—'}</td>
+      <td>${o.FechaFinalReal||'—'}</td>
+      <td>${nombreEmp(o.Responsable)}</td>
+      <td class="text-end d-flex gap-1 justify-content-end">
+        <button class="btn btn-outline-primary btn-sm py-0 px-2" onclick="imprimirOP('${o.ID_OP}')" title="Imprimir OP">
+          <i class="bi bi-printer"></i></button>
+        ${editBtn(`abrirModalOP('${o.ID_OP}')`)}
+      </td>
+    </tr>`;
+  }).join('');
+  initDT('#tablaOP');
+}
+
+function filtrarOP() {
+  const val = document.getElementById('filtroObraOP').value;
+  if (!val) return renderOP(ordenes);
+  const mueblesProj = muebles.filter(m=>m.ID_Proyecto===val).map(m=>m.ID_Mueble);
+  renderOP(ordenes.filter(o=>mueblesProj.includes(o.ID_Mueble)));
+}
+
+// ══════════════════════════════════════════════════
+// MODAL PROYECTO
+// ══════════════════════════════════════════════════
+function abrirModalProyecto(id) {
+  _editPrj = id || null;
+  const p = _editPrj ? proyectos.find(x=>x.ID_Proyecto===id) : null;
+
+  document.getElementById('modalProyectoTitle').innerHTML =
+    `<i class="bi bi-briefcase me-2"></i>${p ? 'Editar Proyecto' : 'Nuevo Proyecto'}`;
+
+  const idInput  = document.getElementById('prjID');
+  const idIcon   = document.getElementById('prjIDIcon');
+  if (p) {
+    // Modo edición: mostrar ID existente, sólo lectura
+    idInput.value   = p.ID_Proyecto;
+    idInput.readOnly = true;
+    idInput.classList.add('bg-body-secondary');
+    idIcon.title = 'ID existente (no se puede cambiar)';
+    idIcon.innerHTML = '<i class="bi bi-lock-fill text-secondary"></i>';
+  } else {
+    // Modo nuevo: auto-generar
+    idInput.value   = '…';
+    idInput.readOnly = true;
+    idInput.classList.remove('bg-body-secondary');
+    idIcon.title = 'Código generado automáticamente';
+    idIcon.innerHTML = '<i class="bi bi-magic"></i>';
+    fetchNextCode('PROY').then(code => { idInput.value = code; });
+  }
+
+  document.getElementById('prjCliente').value  = p ? (p.Cliente||'') : '';
+  document.getElementById('prjNombre').value   = p ? (p.Nombre_Obra||'') : '';
+  document.getElementById('prjInicio').value   = p ? (p.Inicio||'') : '';
+  document.getElementById('prjFin').value      = p ? (p.Fin||'') : '';
+  document.getElementById('prjEstado').value   = p ? (p.Estado||'En proceso') : 'En proceso';
+
+  poblarSelect('prjEncargado', empleados, 'EmpleadoID', e=>`${e.Nombre} ${e.Apellido}`);
+  if (p && p.Encargado) document.getElementById('prjEncargado').value = p.Encargado;
+
+  // Inicializar datepickers
+  ['prjInicio','prjFin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el._fp) el._fp = flatpickr(el, {locale:'es', dateFormat:'Y-m-d', allowInput:true});
+  });
+
+  new bootstrap.Modal(document.getElementById('modalProyecto')).show();
+}
+
+async function guardarProyecto() {
+  const payload = {
+    ID_Proyecto: document.getElementById('prjID').value,
+    Cliente:     document.getElementById('prjCliente').value,
+    Nombre_Obra: document.getElementById('prjNombre').value,
+    Inicio:      document.getElementById('prjInicio').value,
+    Fin:         document.getElementById('prjFin').value,
+    Encargado:   document.getElementById('prjEncargado').value,
+    Estado:      document.getElementById('prjEstado').value,
+  };
+  if (!payload.ID_Proyecto||!payload.Cliente||!payload.Nombre_Obra)
+    return showToast('Completa los campos requeridos','danger');
+
+  const url    = _editPrj ? `/api/proyectos/${_editPrj}` : '/api/proyectos';
+  const method = _editPrj ? 'PUT' : 'POST';
+  await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+
+  bootstrap.Modal.getInstance(document.getElementById('modalProyecto')).hide();
+  showToast(_editPrj ? 'Proyecto actualizado' : 'Proyecto creado', 'success');
+  cargarDatos();
+}
+
+// ══════════════════════════════════════════════════
+// MODAL MUEBLE
+// ══════════════════════════════════════════════════
+function abrirModalMueble(id) {
+  _editMue = id || null;
+  const m = _editMue ? muebles.find(x=>x.ID_Mueble===id) : null;
+
+  document.getElementById('modalMuebleTitle').innerHTML =
+    `<i class="bi bi-grid me-2"></i>${m ? 'Editar Mueble' : 'Nuevo Mueble'}`;
+
+  const idInput = document.getElementById('mueID');
+  const idIcon  = document.getElementById('mueIDIcon');
+  if (m) {
+    idInput.value   = m.ID_Mueble;
+    idInput.readOnly = true;
+    idInput.classList.add('bg-body-secondary');
+    idIcon.title = 'ID existente (no se puede cambiar)';
+    idIcon.innerHTML = '<i class="bi bi-lock-fill text-secondary"></i>';
+  } else {
+    idInput.value   = '…';
+    idInput.readOnly = true;
+    idInput.classList.remove('bg-body-secondary');
+    idIcon.title = 'Código generado automáticamente';
+    idIcon.innerHTML = '<i class="bi bi-magic"></i>';
+    fetchNextCode('MUE').then(code => { idInput.value = code; });
+  }
+
+  poblarSelect('mueProyecto', proyectos, 'ID_Proyecto', p=>`${p.ID_Proyecto} — ${p.Nombre_Obra}`);
+
+  document.getElementById('mueNombre').value   = m ? (m.Mueble||'') : '';
+  document.getElementById('mueCantidad').value = m ? (m.Cantidad||1) : 1;
+  document.getElementById('mueTipo').value     = m ? (m.Tipo||'') : '';
+  document.getElementById('mueArea').value     = m ? (m.Area||'Carpintería') : 'Carpintería';
+  document.getElementById('mueObs').value      = m ? (m['Observación']||'') : '';
+  if (m) document.getElementById('mueProyecto').value = m.ID_Proyecto||'';
+
+  new bootstrap.Modal(document.getElementById('modalMueble')).show();
+}
+
+async function guardarMueble() {
+  const payload = {
+    ID_Mueble:   document.getElementById('mueID').value,
+    ID_Proyecto: document.getElementById('mueProyecto').value,
+    Mueble:      document.getElementById('mueNombre').value,
+    Cantidad:    document.getElementById('mueCantidad').value,
+    Tipo:        document.getElementById('mueTipo').value,
+    Area:        document.getElementById('mueArea').value,
+    'Observación': document.getElementById('mueObs').value,
+  };
+  if (!payload.ID_Mueble||!payload.Mueble)
+    return showToast('Completa los campos requeridos','danger');
+
+  const url    = _editMue ? `/api/muebles/${_editMue}` : '/api/muebles';
+  const method = _editMue ? 'PUT' : 'POST';
+  await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+
+  bootstrap.Modal.getInstance(document.getElementById('modalMueble')).hide();
+  showToast(_editMue ? 'Mueble actualizado' : 'Mueble agregado', 'success');
+  cargarDatos();
+}
+
+// ══════════════════════════════════════════════════
+// MODAL OP
+// ══════════════════════════════════════════════════
+function filtrarMueblesOP() {
+  const obraId   = document.getElementById('opObra').value;
+  const filtered = obraId ? muebles.filter(m=>m.ID_Proyecto===obraId) : muebles;
+  poblarSelect('opMueble', filtered, 'ID_Mueble', m=>`${m.ID_Mueble} — ${m.Mueble}`);
+}
+
+function abrirModalOP(id) {
+  _editOP = id || null;
+  const o = _editOP ? ordenes.find(x=>x.ID_OP===id) : null;
+
+  document.getElementById('modalOPTitle').innerHTML =
+    `<i class="bi bi-clipboard-check me-2"></i>${o ? 'Editar Orden de Producción' : 'Nueva Orden de Producción'}`;
+
+  const idInput = document.getElementById('opID');
+  const idIcon  = document.getElementById('opIDIcon');
+  if (o) {
+    idInput.value = o.ID_OP;
+    idInput.classList.add('bg-body-secondary');
+    idIcon.innerHTML = '<i class="bi bi-lock-fill text-secondary"></i>';
+  } else {
+    idInput.value = '…';
+    idInput.classList.remove('bg-body-secondary');
+    idIcon.innerHTML = '<i class="bi bi-magic"></i>';
+    fetchNextCode('OP').then(code => { idInput.value = code; });
+  }
+
+  // Poblar Obra y filtrar muebles según la obra del registro editado
+  poblarSelect('opObra', proyectos, 'ID_Proyecto', p=>`${p.ID_Proyecto} — ${p.Nombre_Obra}`);
+  poblarSelect('opEtapa',       etapas,    'Etapa',      e=>`${e.Orden||''} ${e.Etapa}`.trim());
+  poblarSelect('opResponsable', empleados, 'EmpleadoID', e=>`${e.Nombre} ${e.Apellido}`);
+
+  if (o) {
+    // En edición, detectar la obra del mueble para pre-seleccionarla
+    const mue = muebles.find(m=>m.ID_Mueble===o.ID_Mueble);
+    if (mue) document.getElementById('opObra').value = mue.ID_Proyecto||'';
+  }
+  filtrarMueblesOP();
+
+  document.getElementById('opCantidad').value = o ? (o.Cantidad||1) : 1;
+  document.getElementById('opIniPlan').value  = o ? (o.FechaInicioPlaneada||'') : '';
+  document.getElementById('opFinPlan').value  = o ? (o.FechaFinalPlaneada||'') : '';
+  document.getElementById('opIniReal').value  = o ? (o.FechaInicioReal||'') : '';
+  document.getElementById('opFinReal').value  = o ? (o.FechaFinalReal||'') : '';
+  if (o) {
+    document.getElementById('opMueble').value      = o.ID_Mueble||'';
+    document.getElementById('opEtapa').value       = o.Etapa||'';
+    document.getElementById('opResponsable').value = o.Responsable||'';
+  }
+
+  ['opIniPlan','opFinPlan','opIniReal','opFinReal'].forEach(fid => {
+    const el = document.getElementById(fid);
+    if (!el._fp) el._fp = flatpickr(el, {locale:'es', dateFormat:'Y-m-d', allowInput:true});
+  });
+
+  new bootstrap.Modal(document.getElementById('modalOP')).show();
+}
+
+async function guardarOP() {
+  const payload = {
+    ID_OP:               document.getElementById('opID').value,
+    ID_Mueble:           document.getElementById('opMueble').value,
+    Etapa:               document.getElementById('opEtapa').value,
+    Cantidad:            document.getElementById('opCantidad').value,
+    FechaInicioPlaneada: document.getElementById('opIniPlan').value,
+    FechaFinalPlaneada:  document.getElementById('opFinPlan').value,
+    FechaInicioReal:     document.getElementById('opIniReal').value,
+    FechaFinalReal:      document.getElementById('opFinReal').value,
+    Responsable:         document.getElementById('opResponsable').value,
+  };
+  if (!payload.ID_OP||!payload.ID_Mueble||!payload.Etapa)
+    return showToast('Completa los campos requeridos','danger');
+
+  const url    = _editOP ? `/api/ordenes/${_editOP}` : '/api/ordenes';
+  const method = _editOP ? 'PUT' : 'POST';
+  await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+
+  bootstrap.Modal.getInstance(document.getElementById('modalOP')).hide();
+  showToast(_editOP ? 'Orden actualizada' : 'Orden de producción creada', 'success');
+  cargarDatos();
+}
+
+// ── Imprimir Orden de Producción ──────────────────────────────────────────
+function imprimirOP(id) {
+  const o = ordenes.find(x=>x.ID_OP===id);
+  if (!o) return showToast('Orden no encontrada','warning');
+  const mue  = muebles.find(m=>m.ID_Mueble===o.ID_Mueble)||{Mueble:o.ID_Mueble, ID_Proyecto:''};
+  const prj  = proyectos.find(p=>p.ID_Proyecto===mue.ID_Proyecto)||{Nombre_Obra:'—', Cliente:'—'};
+  const resp = empleados.find(e=>e.EmpleadoID===o.Responsable);
+  const respNombre = resp ? `${resp.Nombre} ${resp.Apellido}` : (o.Responsable||'—');
+  const now  = new Date();
+  const hoy  = now.toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>OP ${o.ID_OP}</title>
+<style>
+  @page { size: A4 portrait; margin: 12mm 18mm 18mm 18mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:9pt; color:#000; }
+  .logo-space { height:24mm; border-bottom:2px solid #1a6e35; margin-bottom:8pt; }
+  .op-header { display:flex; justify-content:space-between; align-items:flex-start;
+    margin-bottom:8pt; }
+  .op-title { font-size:13pt; font-weight:700; color:#1a6e35; }
+  .op-sub   { font-size:8pt; color:#555; margin-top:2pt; }
+  .op-id    { text-align:right; font-size:9pt; line-height:2; }
+  .op-id strong { font-size:13pt; color:#1a6e35; }
+  table.data { width:100%; border-collapse:collapse; margin-bottom:8pt; }
+  table.data td { border:1px solid #bbb; padding:4pt 6pt; font-size:9pt; vertical-align:middle; }
+  table.data td.lbl { background:#f2f2f2; font-weight:600; width:110pt; white-space:nowrap; }
+  .instrucciones { border:1px solid #ccc; border-radius:3pt; padding:6pt 8pt;
+    margin-bottom:8pt; background:#fafff7; }
+  .instrucciones h4 { font-size:8.5pt; font-weight:700; color:#1a6e35; margin-bottom:4pt; }
+  .instrucciones p  { font-size:8pt; color:#555; line-height:1.5; }
+  .firmas { display:flex; gap:20pt; margin-top:14pt; }
+  .firma-box { flex:1; text-align:center; font-size:8pt; color:#555; }
+  .firma-linea { border-top:1px solid #000; margin:20pt 0 4pt; }
+  .footer-barron { margin-top:12pt; padding-top:4pt; border-top:1px solid #ddd;
+    text-align:center; font-size:7pt; color:#aaa; letter-spacing:.05em; }
+</style></head><body>
+<div class="logo-space"></div>
+<div class="op-header">
+  <div>
+    <div class="op-title">ORDEN DE PRODUCCIÓN</div>
+    <div class="op-sub">Taller By Barrón &nbsp;·&nbsp; Impresa el ${hoy}</div>
+  </div>
+  <div class="op-id">
+    <strong>${o.ID_OP}</strong><br>
+    <span style="font-size:8pt;color:#555;">ID de Orden</span>
+  </div>
+</div>
+<table class="data">
+  <tr>
+    <td class="lbl">Proyecto / Obra</td><td colspan="3">${prj.Nombre_Obra} &nbsp;<small style="color:#666;">(${prj.Cliente||'—'})</small></td>
+  </tr>
+  <tr>
+    <td class="lbl">Mueble</td><td>${mue.Mueble}</td>
+    <td class="lbl">Cantidad</td><td>${o.Cantidad||'—'}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Etapa</td><td>${o.Etapa||'—'}</td>
+    <td class="lbl">Responsable</td><td>${respNombre}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Inicio planeado</td><td>${o.FechaInicioPlaneada||'—'}</td>
+    <td class="lbl">Fin planeado</td><td>${o.FechaFinalPlaneada||'—'}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Inicio real</td><td>${o.FechaInicioReal||'—'}</td>
+    <td class="lbl">Fin real</td><td>${o.FechaFinalReal||'—'}</td>
+  </tr>
+</table>
+<div class="instrucciones">
+  <h4>Instrucciones / Notas de producción</h4>
+  <p>&nbsp;<br>&nbsp;<br>&nbsp;</p>
+</div>
+<div class="firmas">
+  <div class="firma-box">Elaboró<div class="firma-linea"></div><small>Jefe de taller</small></div>
+  <div class="firma-box">Recibió<div class="firma-linea"></div><small>${respNombre}</small></div>
+  <div class="firma-box">Entregó (terminado)<div class="firma-linea"></div><small>Fecha: ___________</small></div>
+</div>
+<div class="footer-barron">BY BARRÓN &nbsp;·&nbsp; Sistema de Gestión de Taller</div>
+</body></html>`;
+
+  const win = window.open('','_blank','width=720,height=950');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>win.print(), 400);
+}
+
+cargarDatos();
+</script>

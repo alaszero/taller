@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Taller Flask",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["app.py"],
+      "port": 5000
+    },
+    {
+      "name": "Taller Web SQLite",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["app_web.py"],
+      "port": 5050
+    }
+  ]
+}

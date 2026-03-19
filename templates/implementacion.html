@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+{% block title %}Implementación{% endblock %}
+{% block page_title %}Implementación del Sistema{% endblock %}
+
+{% block content %}
+<div class="alert alert-info d-flex gap-2 mb-4" style="font-size:13.5px;">
+  <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1"></i>
+  <div>
+    <strong>¿Para qué sirve esta sección?</strong><br>
+    Aquí encontrarás hojas de captura imprimibles para levantar la información del taller de forma física
+    y luego cargarla al sistema. Imprime cada formulario, llénalos con tu equipo y cárgalos a través de
+    los catálogos y registros correspondientes.
+  </div>
+</div>
+
+<!-- Tarjeta destacada: Manual de Usuario -->
+<div class="card border-primary mb-4">
+  <div class="card-body d-flex align-items-center justify-content-between gap-3 flex-wrap">
+    <div>
+      <div class="fw-bold fs-6 text-primary">
+        <i class="bi bi-book-half me-2"></i>Manual de Usuario
+      </div>
+      <div class="text-muted small mt-1">
+        Genera el manual actualizado con todas las funciones del sistema y lo abre listo para
+        imprimir o guardar como PDF. La fecha del manual se actualiza en cada generación.
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-shrink-0">
+      <button id="btnManual" class="btn btn-primary" onclick="abrirManual(this)">
+        <i class="bi bi-printer me-1"></i>Actualizar e imprimir manual
+      </button>
+      <a href="/manual" target="_blank" class="btn btn-outline-primary">
+        <i class="bi bi-eye me-1"></i>Solo ver
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Grid de tarjetas de formularios -->
+<div class="row g-3">
+
+  <!-- 1. Catálogo de Materiales -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-box-seam me-2 text-primary"></i>Catálogo de Materiales</span>
+        <button class="btn btn-sm btn-outline-primary" onclick="imprimirForm('materiales')">
+          <i class="bi bi-printer me-1"></i>Imprimir
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          Lista todos los materiales e insumos del taller. Incluye tipo, unidad de medida
+          y stock mínimo deseado.
+        </p>
+        <ul class="small text-muted mt-2 mb-0 ps-3">
+          <li>Código único (MAT001…)</li>
+          <li>Tipo: Tablero, Madera, Herraje, Consumible, EPP</li>
+          <li>Unidad: pza, pie, m, kg, lt…</li>
+          <li>Stock mínimo de alerta</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Inventario Inicial de Almacén -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clipboard-data me-2 text-success"></i>Inventario Inicial</span>
+        <button class="btn btn-sm btn-outline-success" onclick="imprimirForm('inventario')">
+          <i class="bi bi-printer me-1"></i>Imprimir
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          Conteo físico de stock inicial. Se carga al sistema como movimientos de
+          <strong>Entrada</strong> con fecha de inicio.
+        </p>
+        <ul class="small text-muted mt-2 mb-0 ps-3">
+          <li>Material (código o nombre)</li>
+          <li>Cantidad actual</li>
+          <li>Unidad</li>
+          <li>Ubicación en almacén</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Catálogo de Herramientas -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-wrench-adjustable me-2 text-warning"></i>Catálogo de Herramientas</span>
+        <button class="btn btn-sm btn-outline-warning" onclick="imprimirForm('herramientas')">
+          <i class="bi bi-printer me-1"></i>Imprimir
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          Registro de todas las herramientas del taller con su número de serie y ubicación.
+        </p>
+        <ul class="small text-muted mt-2 mb-0 ps-3">
+          <li>Código único (HER001…)</li>
+          <li>Marca, modelo, N/S</li>
+          <li>Categoría y tipo</li>
+          <li>Estado actual</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Empleados -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-people me-2 text-info"></i>Empleados / Trabajadores</span>
+        <button class="btn btn-sm btn-outline-info" onclick="imprimirForm('empleados')">
+          <i class="bi bi-printer me-1"></i>Imprimir
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          Alta de trabajadores activos. El ID de empleado se usa en registros de avance
+          y préstamos de herramientas.
+        </p>
+        <ul class="small text-muted mt-2 mb-0 ps-3">
+          <li>Código único (EMP001…)</li>
+          <li>Nombre, área, puesto</li>
+          <li>Especialidad</li>
+          <li>Fecha de ingreso</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Proyectos y Muebles -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-kanban me-2 text-secondary"></i>Proyectos y Muebles</span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="imprimirForm('proyectos')">
+          <i class="bi bi-printer me-1"></i>Imprimir
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          Registro de obras en curso y los muebles que las componen. Cada mueble
+          tiene sus propias órdenes de producción.
+        </p>
+        <ul class="small text-muted mt-2 mb-0 ps-3">
+          <li>Proyecto: cliente, fechas, encargado</li>
+          <li>Mueble: nombre, tipo, prioridad (Normal/Media/Alta), cantidad</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Órdenes de Producción -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-check me-2" style="color:#6f42c1;"></i>Órdenes de Producción</span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="imprimirForm('ordenes')">
+          <i class="bi bi-printer me-1"></i>Imprimir
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          Cada OP representa una etapa de trabajo de un mueble. Es el núcleo del
+          seguimiento de avance.
+        </p>
+        <ul class="small text-muted mt-2 mb-0 ps-3">
+          <li>ID OP, mueble, etapa</li>
+          <li>Fechas planeadas</li>
+          <li>Responsable</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Registro de Avance -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-graph-up me-2 text-success"></i>Registro de Avance</span>
+        <button class="btn btn-sm btn-outline-success" onclick="imprimirForm('avance')">
+          <i class="bi bi-printer me-1"></i>Imprimir
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          Hoja diaria de seguimiento de producción. Se entrega al encargado al final
+          de cada día para capturarla en el sistema.
+        </p>
+        <ul class="small text-muted mt-2 mb-0 ps-3">
+          <li>OP, empleado, etapa</li>
+          <li>Horas trabajadas</li>
+          <li>Piezas completadas</li>
+          <li>Nuevo estado</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Movimientos de Almacén -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-arrow-left-right me-2 text-primary"></i>Movimientos de Almacén</span>
+        <button class="btn btn-sm btn-outline-primary" onclick="imprimirForm('movimientos')">
+          <i class="bi bi-printer me-1"></i>Imprimir
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          Registro de entradas, salidas y traslados de material. Permite el seguimiento
+          del consumo por proyecto.
+        </p>
+        <ul class="small text-muted mt-2 mb-0 ps-3">
+          <li>Tipo: Entrada / Salida / Traslado</li>
+          <li>Material, cantidad, unidad</li>
+          <li>Proyecto, mueble, responsable</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Préstamo de Herramientas -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-box-arrow-up-right me-2 text-warning"></i>Préstamo de Herramientas</span>
+        <button class="btn btn-sm btn-outline-warning" onclick="imprimirForm('prestamos')">
+          <i class="bi bi-printer me-1"></i>Imprimir
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          Hoja de control de préstamos de herramientas. Úsala como respaldo físico
+          antes de registrar en el sistema.
+        </p>
+        <ul class="small text-muted mt-2 mb-0 ps-3">
+          <li>ID préstamo, fecha</li>
+          <li>Herramienta, responsable</li>
+          <li>Proyecto, fecha devolución</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /row -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── CSS compartido para todos los documentos imprimibles ──
+const CSS_BASE = `
+  @page { margin: 12mm 14mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:9pt; color:#000; }
+  h1  { font-size:13pt; font-weight:700; }
+  h2  { font-size:10.5pt; background:#1a1a1a; color:#fff; padding:3pt 7pt; margin:10pt 0 4pt; border-radius:2pt; }
+  .doc-header { display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:2.5px solid #000; padding-bottom:5pt; margin-bottom:8pt; }
+  .doc-meta { text-align:right; font-size:8pt; line-height:1.8; }
+  .linea { display:inline-block; border-bottom:1px solid #000; min-width:90pt; margin-left:3pt; }
+  .instrucciones { font-size:7.5pt; color:#444; background:#f4f4f4; border:1px solid #ccc;
+    padding:4pt 8pt; margin-bottom:9pt; border-radius:2pt; }
+  table { width:100%; border-collapse:collapse; margin-bottom:6pt; }
+  th { font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    background:#f0f0f0; border:1px solid #aaa; padding:3pt 4pt; white-space:nowrap; }
+  td { border:1px solid #bbb; height:20pt; vertical-align:middle; padding-left:4pt; font-size:8.5pt; }
+  td.campo { background:#fafafa; }
+  .firma-row { display:flex; gap:30pt; margin-top:18pt; }
+  .firma-box { flex:1; border-top:1px solid #000; padding-top:3pt; font-size:7.5pt; text-align:center; color:#555; }
+`;
+
+function filas(n, cols) {
+  return Array.from({length: n}, () =>
+    `<tr>${Array(cols).fill('<td class="campo"></td>').join('')}</tr>`
+  ).join('');
+}
+
+function docHeader(titulo, subtitulo, paisaje) {
+  const today = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+  return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><title>${titulo}</title>
+<style>@page{size:letter ${paisaje?'landscape':'portrait'};} ${CSS_BASE}</style>
+</head><body>
+<div class="doc-header">
+  <div><h1>${titulo}</h1><p style="font-size:8pt;color:#555;margin-top:2pt;">${subtitulo}</p></div>
+  <div class="doc-meta">
+    <div>Impreso: ${today}</div>
+    <div>Fecha de captura: <span class="linea">&nbsp;</span></div>
+    <div>Capturado por: <span class="linea">&nbsp;</span></div>
+  </div>
+</div>`;
+}
+
+function abrirVentana(html) {
+  const win = window.open('', '_blank', 'width=1050,height=750');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 450);
+}
+
+// ── Generadores por tipo ──
+const FORMS = {
+
+  materiales() {
+    let html = docHeader('Catálogo de Materiales', 'Sistema de Taller — Alta de materiales e insumos', false);
+    html += `<div class="instrucciones">Asigna un código único a cada material (MAT001, MAT002…). Tipos: Tablero · Madera · Herraje · Consumible · EPP. Unidades: pza · pie · m · kg · lt · ml · rollo.</div>
+<table>
+  <thead><tr>
+    <th style="width:65pt">Código</th><th style="width:65pt">Tipo</th>
+    <th>Descripción</th><th style="width:55pt">Unidad</th><th style="width:60pt">Stock mín.</th>
+  </tr></thead><tbody>${filas(30, 5)}</tbody>
+</table>`;
+    html += `<div class="firma-row"><div class="firma-box">Elaboró</div><div class="firma-box">Aprobó</div></div></body></html>`;
+    abrirVentana(html);
+  },
+
+  inventario() {
+    let html = docHeader('Inventario Inicial de Almacén', 'Conteo físico de stock inicial — se registra como Entrada en el sistema', true);
+    html += `<div class="instrucciones">Registra la cantidad física actual de cada material. Este conteo se carga al sistema como movimiento de <strong>Entrada</strong> con la fecha de inicio de operaciones.</div>
+<table>
+  <thead><tr>
+    <th style="width:65pt">Código mat.</th><th>Descripción / Material</th>
+    <th style="width:55pt">Unidad</th><th style="width:65pt">Cantidad</th>
+    <th style="width:90pt">Ubicación</th><th>Observaciones</th>
+  </tr></thead><tbody>${filas(35, 6)}</tbody>
+</table>`;
+    html += `<div class="firma-row"><div class="firma-box">Realizó el conteo</div><div class="firma-box">Supervisó</div><div class="firma-box">Capturó en sistema</div></div></body></html>`;
+    abrirVentana(html);
+  },
+
+  herramientas() {
+    let html = docHeader('Catálogo de Herramientas', 'Alta de herramientas del taller', true);
+    html += `<div class="instrucciones">Asigna un código único (HER001, HER002…). Tipos: Eléctrica · Neumática · Manual · Medición. Categorías: Corte · Maquinado · Armado · Acabado · Medición · General. Estado: Disponible · En reparación · De baja.</div>
+<table>
+  <thead><tr>
+    <th style="width:60pt">Código</th><th>Nombre herramienta</th>
+    <th style="width:70pt">Marca</th><th style="width:70pt">Modelo</th>
+    <th style="width:70pt">N/S</th><th style="width:60pt">Tipo</th>
+    <th style="width:70pt">Categoría</th><th style="width:80pt">Ubicación base</th>
+    <th style="width:65pt">Estado</th>
+  </tr></thead><tbody>${filas(25, 9)}</tbody>
+</table>`;
+    html += `<div class="firma-row"><div class="firma-box">Elaboró</div><div class="firma-box">Aprobó</div></div></body></html>`;
+    abrirVentana(html);
+  },
+
+  empleados() {
+    let html = docHeader('Catálogo de Empleados', 'Alta de trabajadores activos del taller', false);
+    html += `<div class="instrucciones">Asigna un código único (EMP001…). Áreas: Carpintería · Lacado · Oficina. Puestos: Carpintero · Laqueador · Supervisor · Encargado.</div>
+<table>
+  <thead><tr>
+    <th style="width:60pt">Código</th><th style="width:110pt">Nombre</th>
+    <th style="width:110pt">Apellido</th><th style="width:60pt">Alias</th>
+    <th style="width:80pt">Área</th><th style="width:90pt">Puesto</th>
+    <th style="width:110pt">Especialidad</th><th style="width:85pt">Fecha ingreso</th>
+  </tr></thead><tbody>${filas(20, 8)}</tbody>
+</table>`;
+    html += `<div class="firma-row"><div class="firma-box">Elaboró</div><div class="firma-box">Autorizó</div></div></body></html>`;
+    abrirVentana(html);
+  },
+
+  proyectos() {
+    let html = docHeader('Proyectos y Muebles', 'Registro de obras en proceso y los muebles que las componen', true);
+    html += `<h2>Proyectos</h2>
+<div class="instrucciones">Código de proyecto: PROY001, PROY002… Estado: En proceso · Completado · En pausa.</div>
+<table>
+  <thead><tr>
+    <th style="width:65pt">Código</th><th>Cliente</th><th>Nombre obra</th>
+    <th style="width:75pt">Inicio</th><th style="width:75pt">Fin planeado</th>
+    <th style="width:80pt">Encargado</th><th style="width:80pt">Estado</th>
+  </tr></thead><tbody>${filas(8, 7)}</tbody>
+</table>
+<h2 style="margin-top:14pt;">Muebles</h2>
+<div class="instrucciones">Código de mueble: MUE001, MUE002… Tipo: Puerta · Closet · Cocina · Baño · Vestidor · Cama · TV · Escritorio · Otro.</div>
+<table>
+  <thead><tr>
+    <th style="width:65pt">Código</th><th style="width:75pt">Proyecto</th>
+    <th>Nombre mueble</th><th style="width:55pt">Cantidad</th>
+    <th style="width:70pt">Tipo</th><th style="width:80pt">Área</th>
+    <th>Observaciones</th>
+  </tr></thead><tbody>${filas(20, 7)}</tbody>
+</table>`;
+    html += `<div class="firma-row"><div class="firma-box">Elaboró</div><div class="firma-box">Aprobó</div></div></body></html>`;
+    abrirVentana(html);
+  },
+
+  ordenes() {
+    let html = docHeader('Órdenes de Producción', 'Alta de OPs por mueble y etapa', true);
+    html += `<div class="instrucciones">Código de OP: OP001, OP002… Etapas comunes: Corte · Maquinado · Armado · Masillado · Lijado · Sellado · Laqueado base · Lijado fino · Laqueado final · Instalación.</div>
+<table>
+  <thead><tr>
+    <th style="width:55pt">ID OP</th><th style="width:65pt">Mueble</th>
+    <th style="width:140pt">Etapa</th><th style="width:55pt">Cantidad</th>
+    <th style="width:80pt">Fecha inicio plan.</th><th style="width:80pt">Fecha fin plan.</th>
+    <th style="width:90pt">Responsable</th><th>Observaciones</th>
+  </tr></thead><tbody>${filas(40, 8)}</tbody>
+</table>`;
+    html += `<div class="firma-row"><div class="firma-box">Elaboró</div><div class="firma-box">Aprobó</div></div></body></html>`;
+    abrirVentana(html);
+  },
+
+  avance() {
+    let html = docHeader('Registro Diario de Avance', 'Hoja para registro físico — capturar en sistema al final del día', true);
+    html += `<div class="instrucciones">Llena un renglón por cada actividad realizada. Entrega esta hoja al encargado de captura al finalizar el turno.
+Estados: <strong>En proceso · Completado · Pausado · Pendiente</strong></div>
+<table>
+  <thead><tr>
+    <th style="width:60pt">Fecha</th><th style="width:55pt">ID OP</th>
+    <th style="width:80pt">Empleado</th><th style="width:130pt">Etapa</th>
+    <th style="width:95pt">Estado</th><th style="width:45pt">Horas</th>
+    <th style="width:45pt">Piezas</th><th>Notas / Observaciones</th>
+  </tr></thead><tbody>${filas(35, 8)}</tbody>
+</table>`;
+    html += `<div class="firma-row"><div class="firma-box">Supervisor / Encargado</div><div class="firma-box">Capturado por</div><div class="firma-box">Fecha de captura</div></div></body></html>`;
+    abrirVentana(html);
+  },
+
+  movimientos() {
+    let html = docHeader('Movimientos de Almacén', 'Registro de entradas, salidas y traslados de material', true);
+    html += `<div class="instrucciones">Tipo: <strong>Entrada</strong> (compra/recepción) · <strong>Salida</strong> (uso en proyecto) · <strong>Traslado</strong> (cambio de ubicación). Fecha y hora: anótalos para captura exacta.</div>
+<table>
+  <thead><tr>
+    <th style="width:58pt">Fecha</th><th style="width:40pt">Hora</th>
+    <th style="width:60pt">Código mat.</th><th>Material</th>
+    <th style="width:60pt">Tipo</th><th style="width:55pt">Cantidad</th>
+    <th style="width:40pt">Unidad</th><th style="width:70pt">Proyecto</th>
+    <th style="width:80pt">Mueble</th><th style="width:80pt">Responsable</th>
+  </tr></thead><tbody>${filas(35, 10)}</tbody>
+</table>`;
+    html += `<div class="firma-row"><div class="firma-box">Registró</div><div class="firma-box">Supervisó</div></div></body></html>`;
+    abrirVentana(html);
+  },
+
+  prestamos() {
+    let html = docHeader('Control de Préstamo de Herramientas', 'Registro físico de salidas y devoluciones de herramienta', true);
+    html += `<div class="instrucciones">Registra cada salida de herramienta. Obtén la firma del trabajador en la columna correspondiente. Carga la información al sistema desde <strong>Herramientas → Registrar préstamo</strong>.</div>
+<table>
+  <thead><tr>
+    <th style="width:60pt">Folio</th><th style="width:60pt">ID Herr.</th>
+    <th>Herramienta</th><th style="width:100pt">Responsable</th>
+    <th style="width:80pt">Proyecto</th><th style="width:70pt">Fecha salida</th>
+    <th style="width:70pt">Fecha devolución</th><th style="width:80pt">Firma trabajador</th>
+    <th>Observaciones</th>
+  </tr></thead><tbody>${filas(30, 9)}</tbody>
+</table>`;
+    html += `<div class="firma-row"><div class="firma-box">Encargado almacén</div><div class="firma-box">Capturado en sistema</div></div></body></html>`;
+    abrirVentana(html);
+  },
+};
+
+function imprimirForm(tipo) {
+  if (FORMS[tipo]) FORMS[tipo]();
+  else alert('Formulario no disponible');
+}
+
+// ── Manual de usuario ─────────────────────────────────────────────────────────
+function abrirManual(btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
+  window.open('/manual?print=1', '_blank');
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-printer me-1"></i>Actualizar e imprimir manual';
+  }, 3000);
+}
+</script>
+{% endblock %}

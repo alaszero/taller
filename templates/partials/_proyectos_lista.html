@@ -1,0 +1,86 @@
+  <!-- Proyectos -->
+  <div class="tab-pane fade show active" id="tabProyectos">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Lista de proyectos</span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="cargarDatos()" title="Actualizar">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-primary" onclick="abrirModalProyecto()">
+            <i class="bi bi-plus-lg me-1"></i>Nuevo proyecto
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover dt-table" id="tablaProyectos">
+            <thead><tr>
+              <th>ID</th><th>Cliente</th><th>Obra</th><th>Inicio</th>
+              <th>Fin planeado</th><th>Encargado</th><th>Estado</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- ══ Modal Proyecto (Nuevo / Editar) ══ -->
+<div class="modal fade" id="modalProyecto" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalProyectoTitle">
+          <i class="bi bi-briefcase me-2"></i>Nuevo Proyecto
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label">ID</label>
+            <div class="input-group">
+              <input type="text" class="form-control font-monospace" id="prjID"
+                title="Código generado automáticamente al crear. Editable en modo edición.">
+              <span class="input-group-text text-muted" id="prjIDIcon"><i class="bi bi-magic"></i></span>
+            </div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Estado</label>
+            <select class="form-select" id="prjEstado">
+              <option>En proceso</option><option>Planeado</option>
+              <option>Completado</option><option>Pausado</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Cliente *</label>
+            <input type="text" class="form-control" id="prjCliente">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Nombre de la obra *</label>
+            <input type="text" class="form-control" id="prjNombre">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Fecha inicio</label>
+            <input type="text" class="form-control" id="prjInicio">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Fecha fin planeada</label>
+            <input type="text" class="form-control" id="prjFin">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Encargado</label>
+            <select class="form-select" id="prjEncargado"></select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" id="btnGuardarProyecto" onclick="guardarProyecto()">
+          <i class="bi bi-save me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

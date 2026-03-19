@@ -1,0 +1,159 @@
+  <!-- Préstamos activos -->
+  <div class="tab-pane fade show active" id="tabPrestadas">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Herramientas actualmente prestadas</span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="cargarDatos()" title="Actualizar todo">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-warning" onclick="abrirModalPrestamo()">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Registrar préstamo
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover dt-table" id="tablaPrestadas">
+            <thead><tr>
+              <th>Folio</th><th>Herramienta</th><th>Responsable</th>
+              <th>Proyecto</th><th>Fecha salida</th><th>Hora</th><th>Acciones</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- Modal: Registrar Préstamo (multi-herramienta con carrito) -->
+<div class="modal fade" id="modalPrestamo" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-box-arrow-up-right me-2"></i>Registrar Préstamo de Herramientas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- ── ENCABEZADO DEL PRÉSTAMO ── -->
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Responsable *</label>
+            <select class="form-select" id="pResponsable"></select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Fecha salida *</label>
+            <input type="text" class="form-control datepicker" id="pFecha">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Proyecto</label>
+            <select class="form-select" id="pProyecto"></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Observaciones</label>
+            <input type="text" class="form-control" id="pObs" placeholder="Notas adicionales...">
+          </div>
+        </div>
+
+        <!-- ── AGREGAR HERRAMIENTAS AL LISTADO ── -->
+        <hr class="my-3">
+        <p class="fw-semibold text-uppercase small text-muted mb-2">
+          <i class="bi bi-wrench-adjustable me-1"></i>Herramientas a prestar
+        </p>
+        <div class="row g-2 align-items-end mb-2">
+          <div class="col-md-10">
+            <label class="form-label">Herramienta disponible *</label>
+            <select class="form-select" id="pHerramienta"></select>
+          </div>
+          <div class="col-md-2">
+            <button type="button" class="btn btn-outline-warning w-100" onclick="agregarHerramientaCarrito()" title="Agregar al listado">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Carrito herramientas -->
+        <div id="prestCarritoVacio" class="text-center text-muted py-3 border rounded small">
+          <i class="bi bi-inbox opacity-50 me-1"></i>Sin herramientas — agrega al menos una
+        </div>
+        <table class="table table-sm table-bordered mb-0" id="prestCarritoTable" style="display:none;">
+          <thead class="table-secondary">
+            <tr>
+              <th style="width:32px">#</th>
+              <th style="width:90px">ID</th>
+              <th>Herramienta</th>
+              <th style="width:36px"></th>
+            </tr>
+          </thead>
+          <tbody id="prestCarritoTbody"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-warning" onclick="guardarPrestamo()" id="btnGuardarPrest">
+          <i class="bi bi-save me-1"></i>Registrar 0 herramientas
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Devolución (parcial o total) -->
+<div class="modal fade" id="modalDevolucion" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title"><i class="bi bi-box-arrow-in-left me-2"></i>Registrar Devolución</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Info del préstamo -->
+        <div class="row g-2 mb-3">
+          <div class="col-md-5">
+            <label class="form-label fw-semibold small text-muted">Folio del préstamo</label>
+            <input type="text" class="form-control form-control-sm font-monospace" id="devFolio" readonly>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold small text-muted">Responsable</label>
+            <input type="text" class="form-control form-control-sm" id="devResponsable" readonly>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small text-muted">Proyecto</label>
+            <input type="text" class="form-control form-control-sm" id="devProyecto" readonly>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Fecha de devolución *</label>
+            <input type="text" class="form-control datepicker" id="devFecha" placeholder="Seleccionar fecha">
+          </div>
+          <div class="col-12">
+            <div class="alert alert-info small py-2 mb-0">
+              <i class="bi bi-info-circle-fill me-1"></i>
+              Marca las herramientas que se están devolviendo. Las que queden sin marcar permanecerán activas.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla de herramientas con checkboxes -->
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead class="table-secondary">
+            <tr>
+              <th style="width:40px" class="text-center">
+                <input type="checkbox" id="devSelectAll" onclick="toggleAllDev(this)" title="Seleccionar / deseleccionar todo" checked>
+              </th>
+              <th>ID Préstamo</th>
+              <th>Herramienta</th>
+              <th>Condición de salida</th>
+            </tr>
+          </thead>
+          <tbody id="devTbody"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-success" onclick="ejecutarDevolucion()">
+          <i class="bi bi-box-arrow-in-left me-1"></i>Confirmar devolución
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
