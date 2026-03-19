@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+{% block title %}Dashboard de Avance{% endblock %}
+{% block page_title %}Dashboard de Avance de Obras{% endblock %}
+
+{% block content %}
+
+<!-- Barra de filtros -->
+<div class="card mb-3">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <i class="bi bi-funnel text-muted"></i>
+      <select class="form-select form-select-sm w-auto" id="filtroProy" onchange="renderDashboard()">
+        <option value="">Todas las obras</option>
+      </select>
+      <div class="d-flex align-items-center gap-1">
+        <label class="form-label mb-0 text-muted small">Desde</label>
+        <input type="text" class="form-control form-control-sm" id="filtroDesde" style="width:120px;" placeholder="YYYY-MM-DD">
+      </div>
+      <div class="d-flex align-items-center gap-1">
+        <label class="form-label mb-0 text-muted small">Hasta</label>
+        <input type="text" class="form-control form-control-sm" id="filtroHasta" style="width:120px;" placeholder="YYYY-MM-DD">
+      </div>
+      <button class="btn btn-sm btn-link text-muted p-0" onclick="limpiarFiltros()" title="Limpiar filtros">
+        <i class="bi bi-x-circle"></i> Limpiar
+      </button>
+      <div class="ms-auto">
+        <a href="/avance" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Registros
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-sm-4 col-xl">
+    <div class="kpi-card kpi-primary">
+      <div class="kpi-icon"><i class="bi bi-list-task"></i></div>
+      <div><div class="kpi-value" id="kpiTotal">—</div><div class="kpi-label">Total OPs</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-4 col-xl">
+    <div class="kpi-card kpi-success">
+      <div class="kpi-icon"><i class="bi bi-check-circle"></i></div>
+      <div><div class="kpi-value" id="kpiComp">—</div><div class="kpi-label">Completadas</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-4 col-xl">
+    <div class="kpi-card kpi-warning">
+      <div class="kpi-icon"><i class="bi bi-play-circle"></i></div>
+      <div><div class="kpi-value" id="kpiEnProc">—</div><div class="kpi-label">En proceso</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-4 col-xl">
+    <div class="kpi-card" style="border-color:#6c757d;">
+      <div class="kpi-icon" style="color:#6c757d;"><i class="bi bi-circle"></i></div>
+      <div><div class="kpi-value" id="kpiSinReg">—</div><div class="kpi-label">Sin registro</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-4 col-xl">
+    <div class="kpi-card kpi-danger">
+      <div class="kpi-icon"><i class="bi bi-clock-history"></i></div>
+      <div><div class="kpi-value" id="kpiHoras">—</div><div class="kpi-label">Horas registradas</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-4 col-xl">
+    <div class="kpi-card" style="border-color:#0dcaf0;">
+      <div class="kpi-icon" style="color:#0dcaf0;"><i class="bi bi-people"></i></div>
+      <div><div class="kpi-value" id="kpiEmp">—</div><div class="kpi-label">Empleados activos</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Contenido principal -->
+<div class="row g-3">
+
+  <!-- Tarjetas de proyecto con desglose por mueble -->
+  <div class="col-12 col-xl-8">
+    <div id="proyCards">
+      <div class="text-center text-muted py-5">
+        <div class="spinner-border spinner-border-sm me-2"></div>Cargando...
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel lateral -->
+  <div class="col-12 col-xl-4">
+
+    <!-- Donut: estado de OPs -->
+    <div class="card mb-3">
+      <div class="card-header py-2"><i class="bi bi-pie-chart me-2"></i>Estado de OPs</div>
+      <div class="card-body">
+        <canvas id="chartEstados" height="220"></canvas>
+        <div id="chartEmpty" class="text-center text-muted small fst-italic d-none">Sin datos</div>
+      </div>
+    </div>
+
+    <!-- Horas por empleado -->
+    <div class="card mb-3">
+      <div class="card-header py-2"><i class="bi bi-person-lines-fill me-2"></i>Horas por empleado</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0" id="tablaHoras">
+          <thead><tr><th>Empleado</th><th class="text-end">Horas</th><th class="text-end">Regs.</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Actividad reciente -->
+    <div class="card">
+      <div class="card-header py-2"><i class="bi bi-activity me-2"></i>Actividad reciente</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0" id="tablaActividad">
+          <thead><tr><th>Fecha</th><th>OP / Mueble</th><th>Estado</th><th class="text-end">Hrs</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let avances=[], ordenes=[], empleados=[], proyectos=[], muebles=[];
+let chartEstados = null;
+
+// ── Lookups ──
+function nombreEmp(id) {
+  const e = empleados.find(x => x.EmpleadoID === id);
+  return e ? `${e.Nombre} ${e.Apellido}` : id;
+}
+function estadoBadgeCls(est) {
+  return { 'Completado':'bg-success', 'En proceso':'bg-primary',
+           'Pausado':'bg-warning text-dark', 'Pendiente':'bg-secondary' }[est] || 'bg-secondary';
+}
+function lastEstadoOP(opId) {
+  const recs = avances.filter(a => a.ID_OP === opId);
+  if (!recs.length) return null;
+  return [...recs].sort((a,b) => b.Fecha.localeCompare(a.Fecha))[0].Estado;
+}
+
+// ── Carga inicial ──
+async function cargarDatos() {
+  const safe = url => fetch(url).then(r=>r.json()).catch(()=>[]);
+  [avances, ordenes, empleados, proyectos, muebles] = await Promise.all([
+    safe('/api/avance'),
+    safe('/api/ordenes'),
+    safe('/api/empleados'),
+    safe('/api/proyectos'),
+    safe('/api/muebles'),
+  ]);
+
+  const sel = document.getElementById('filtroProy');
+  proyectos.forEach(p => {
+    sel.innerHTML += `<option value="${p.ID_Proyecto}">${p.Nombre_Obra||p.ID_Proyecto}</option>`;
+  });
+
+  flatpickr('#filtroDesde', { locale:'es', dateFormat:'Y-m-d', onChange: renderDashboard });
+  flatpickr('#filtroHasta', { locale:'es', dateFormat:'Y-m-d', onChange: renderDashboard });
+
+  renderDashboard();
+}
+
+function limpiarFiltros() {
+  document.getElementById('filtroProy').value = '';
+  document.getElementById('filtroDesde')._flatpickr?.clear();
+  document.getElementById('filtroHasta')._flatpickr?.clear();
+  renderDashboard();
+}
+
+// ── Render principal ──
+function renderDashboard() {
+  const obraFiltro = document.getElementById('filtroProy').value;
+  const desde      = document.getElementById('filtroDesde').value;
+  const hasta      = document.getElementById('filtroHasta').value;
+
+  // Proyectos a mostrar
+  const proysToShow = obraFiltro
+    ? proyectos.filter(p => p.ID_Proyecto === obraFiltro)
+    : proyectos;
+
+  // IDs de muebles y OPs dentro del scope
+  const scopeMueIds = muebles.filter(m => proysToShow.some(p => p.ID_Proyecto === m.ID_Proyecto)).map(m => m.ID_Mueble);
+  const scopeOps    = ordenes.filter(o => scopeMueIds.includes(o.ID_Mueble));
+
+  // Avances filtrados por fecha (para horas y actividad reciente)
+  let avsFilt = [...avances];
+  if (desde) avsFilt = avsFilt.filter(a => a.Fecha >= desde);
+  if (hasta) avsFilt = avsFilt.filter(a => a.Fecha <= hasta);
+  const avsFiltScope = avsFilt.filter(a => {
+    const op = ordenes.find(o => o.ID_OP === a.ID_OP);
+    return op && scopeMueIds.includes(op.ID_Mueble);
+  });
+
+  // Estado actual de cada OP (always all-time, no date filter)
+  const opEst = {};
+  scopeOps.forEach(op => { opEst[op.ID_OP] = lastEstadoOP(op.ID_OP); });
+
+  // KPIs
+  const total       = scopeOps.length;
+  const completadas = scopeOps.filter(o => opEst[o.ID_OP] === 'Completado').length;
+  const enProceso   = scopeOps.filter(o => opEst[o.ID_OP] === 'En proceso').length;
+  const sinReg      = scopeOps.filter(o => !opEst[o.ID_OP]).length;
+  const horas       = avsFiltScope.reduce((s,a) => s + parseFloat(a.Horas||0), 0);
+  const empActivos  = new Set(avsFiltScope.map(a => a.EmpleadoID)).size;
+
+  document.getElementById('kpiTotal').textContent   = total;
+  document.getElementById('kpiComp').textContent    = completadas;
+  document.getElementById('kpiEnProc').textContent  = enProceso;
+  document.getElementById('kpiSinReg').textContent  = sinReg;
+  document.getElementById('kpiHoras').textContent   = horas.toFixed(1);
+  document.getElementById('kpiEmp').textContent     = empActivos;
+
+  renderProyCards(proysToShow, opEst, avsFiltScope, scopeMueIds);
+  renderChartEstados(scopeOps, opEst);
+  renderHorasEmpleado(avsFiltScope);
+  renderActividad(avsFiltScope);
+}
+
+// ── Tarjetas de proyecto ──
+function renderProyCards(proysToShow, opEst, avsFiltScope, scopeMueIds) {
+  const container = document.getElementById('proyCards');
+
+  const html = proysToShow.map(p => {
+    const pid   = p.ID_Proyecto;
+    const pMues = muebles.filter(m => m.ID_Proyecto === pid);
+    const mueIds= pMues.map(m => m.ID_Mueble);
+    const pOps  = ordenes.filter(o => mueIds.includes(o.ID_Mueble));
+    if (!pOps.length) return '';
+
+    const total      = pOps.length;
+    const compl      = pOps.filter(o => opEst[o.ID_OP] === 'Completado').length;
+    const pct        = total > 0 ? Math.round(compl / total * 100) : 0;
+    const pctCol     = pct >= 75 ? 'success' : pct >= 40 ? 'warning' : 'danger';
+
+    const horasProy  = avsFiltScope
+      .filter(a => { const op = ordenes.find(o => o.ID_OP === a.ID_OP); return op && mueIds.includes(op.ID_Mueble); })
+      .reduce((s,a) => s + parseFloat(a.Horas||0), 0);
+
+    const prBadge = {'En proceso':'bg-primary','Iniciado':'bg-info text-dark',
+                     'Completado':'bg-success','Pausado':'bg-secondary'}[p.Estado] || 'bg-secondary';
+
+    // Desglose por mueble
+    const muebleRows = pMues.map(mu => {
+      const muOps   = ordenes.filter(o => o.ID_Mueble === mu.ID_Mueble);
+      if (!muOps.length) return '';
+
+      const muTotal = muOps.length;
+      const muComp  = muOps.filter(o => opEst[o.ID_OP] === 'Completado').length;
+      const muEnP   = muOps.filter(o => opEst[o.ID_OP] === 'En proceso').length;
+      const muPaus  = muOps.filter(o => opEst[o.ID_OP] === 'Pausado').length;
+      const muSinR  = muOps.filter(o => !opEst[o.ID_OP]).length;
+      const muPct   = muTotal > 0 ? Math.round(muComp / muTotal * 100) : 0;
+      const muCol   = muPct === 100 ? 'success' : muPct >= 75 ? 'success' : muPct >= 40 ? 'warning' : muPct > 0 ? 'danger' : 'secondary';
+      const checkIco= muPct === 100 ? ' <i class="bi bi-check-circle-fill text-success" style="font-size:11px;"></i>' : '';
+
+      // Horas de este mueble (date-filtered)
+      const muHoras = avsFiltScope
+        .filter(a => { const op = ordenes.find(o => o.ID_OP === a.ID_OP); return op && op.ID_Mueble === mu.ID_Mueble; })
+        .reduce((s,a) => s + parseFloat(a.Horas||0), 0);
+
+      const pills = [
+        muEnP  > 0 ? `<span class="badge bg-primary fw-normal"  style="font-size:10px;">En proc: ${muEnP}</span>`  : '',
+        muPaus > 0 ? `<span class="badge bg-warning text-dark fw-normal" style="font-size:10px;">Paus: ${muPaus}</span>` : '',
+        muSinR > 0 ? `<span class="badge bg-light text-muted border fw-normal" style="font-size:10px;">S/reg: ${muSinR}</span>` : '',
+      ].filter(Boolean).join(' ');
+
+      return `<tr>
+        <td class="ps-3 small">${mu.Mueble||mu.ID_Mueble}${checkIco}</td>
+        <td style="width:150px;">
+          <div class="d-flex align-items-center gap-1">
+            <div class="progress flex-grow-1" style="height:6px;">
+              <div class="progress-bar bg-${muCol}" style="width:${muPct}%"></div>
+            </div>
+            <small class="text-${muCol} fw-semibold" style="min-width:30px;text-align:right;">${muPct}%</small>
+          </div>
+        </td>
+        <td class="text-center small text-muted" style="width:70px;">${muComp}/${muTotal}</td>
+        <td class="small" style="width:160px;">${pills}</td>
+        <td class="text-end small text-muted" style="width:60px;">${muHoras > 0 ? muHoras.toFixed(1)+' h' : '—'}</td>
+      </tr>`;
+    }).filter(Boolean).join('');
+
+    return `<div class="card mb-3">
+      <div class="card-header py-2">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <span class="fw-bold" style="font-size:14px;">${p.Nombre_Obra||pid}</span>
+            <span class="badge ${prBadge} ms-2 fw-normal">${p.Estado||'—'}</span>
+          </div>
+          <div class="d-flex align-items-center gap-3 small">
+            <span class="text-muted"><i class="bi bi-clock me-1"></i>${horasProy.toFixed(1)} h</span>
+            <span class="text-muted">${compl}/${total} OPs</span>
+            <span class="fw-bold text-${pctCol} fs-6">${pct}%</span>
+          </div>
+        </div>
+        <div class="progress mt-2" style="height:7px;" title="${compl}/${total} OPs completadas">
+          <div class="progress-bar bg-${pctCol}" style="width:${pct}%"></div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0" style="font-size:12px;">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Mueble</th>
+              <th>Avance</th>
+              <th class="text-center">OPs</th>
+              <th>Estado</th>
+              <th class="text-end pe-2">Horas</th>
+            </tr>
+          </thead>
+          <tbody>${muebleRows || '<tr><td colspan="5" class="text-center text-muted py-2 small">Sin OPs registradas</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  container.innerHTML = html || '<div class="text-center text-muted py-5">Sin proyectos con OPs para los filtros actuales.</div>';
+}
+
+// ── Gráfico de estados ──
+function renderChartEstados(ops, opEst) {
+  const cnt = {};
+  ops.forEach(op => {
+    const est = opEst[op.ID_OP] || 'Sin registro';
+    cnt[est] = (cnt[est]||0) + 1;
+  });
+  const labels = Object.keys(cnt).filter(k => cnt[k] > 0);
+  const vals   = labels.map(l => cnt[l]);
+  const colors = { 'Completado':'#198754', 'En proceso':'#0d6efd',
+                   'Pausado':'#ffc107', 'Pendiente':'#6c757d', 'Sin registro':'#adb5bd' };
+  const canvas = document.getElementById('chartEstados');
+  const empty  = document.getElementById('chartEmpty');
+  if (!labels.length) {
+    canvas.style.display='none'; empty.classList.remove('d-none'); return;
+  }
+  canvas.style.display=''; empty.classList.add('d-none');
+  if (chartEstados) chartEstados.destroy();
+  chartEstados = new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: { labels, datasets:[{ data:vals, backgroundColor:labels.map(l=>colors[l]||'#adb5bd'), borderWidth:2 }] },
+    options: { responsive:true, plugins:{ legend:{ position:'bottom', labels:{ font:{ size:11 } } } } }
+  });
+}
+
+// ── Horas por empleado ──
+function renderHorasEmpleado(avsFilt) {
+  const mapa = {};
+  avsFilt.forEach(a => {
+    if (!mapa[a.EmpleadoID]) mapa[a.EmpleadoID] = { horas:0, registros:0 };
+    mapa[a.EmpleadoID].horas     += parseFloat(a.Horas||0);
+    mapa[a.EmpleadoID].registros++;
+  });
+  document.querySelector('#tablaHoras tbody').innerHTML =
+    Object.entries(mapa).sort((a,b) => b[1].horas-a[1].horas).map(([id,v]) => `<tr>
+      <td>${nombreEmp(id)}</td>
+      <td class="text-end fw-semibold">${v.horas.toFixed(1)}</td>
+      <td class="text-end text-muted">${v.registros}</td>
+    </tr>`).join('') ||
+    '<tr><td colspan="3" class="text-center text-muted py-2 small">Sin datos para el período</td></tr>';
+}
+
+// ── Actividad reciente ──
+function renderActividad(avsFilt) {
+  const sorted = [...avsFilt].sort((a,b) => b.Fecha.localeCompare(a.Fecha)).slice(0, 15);
+  document.querySelector('#tablaActividad tbody').innerHTML =
+    sorted.map(a => {
+      const op = ordenes.find(o => o.ID_OP === a.ID_OP) || {};
+      const mu = muebles.find(m => m.ID_Mueble === op.ID_Mueble) || {};
+      return `<tr>
+        <td class="small text-muted">${a.Fecha}</td>
+        <td>
+          <code style="font-size:10px;">${a.ID_OP}</code>
+          <div class="text-muted" style="font-size:10px;">${mu.Mueble||'—'}</div>
+        </td>
+        <td><span class="badge ${estadoBadgeCls(a.Estado)} fw-normal" style="font-size:10px;">${a.Estado}</span></td>
+        <td class="text-end small">${parseFloat(a.Horas||0).toFixed(1)}</td>
+      </tr>`;
+    }).join('') ||
+    '<tr><td colspan="4" class="text-center text-muted py-2 small">Sin actividad para el período</td></tr>';
+}
+
+cargarDatos();
+</script>
+{% endblock %}

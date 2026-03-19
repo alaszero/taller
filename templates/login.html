@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciar Sesión — Taller Carpintería</title>
+  <script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-bs-theme',t);})();</script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --obsidiana: #0A1A2F;
+      --turquesa: #1BA6A6;
+      --turquesa-light: #22c9c9;
+      --turquesa-dark: #158585;
+      --arena: #D9C7A3;
+      --basalto: #4A4A4A;
+    }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(160deg, #0A1A2F 0%, #0D2440 50%, #0F2D52 100%);
+    }
+    [data-bs-theme="light"] body {
+      background: linear-gradient(160deg, #0A1A2F 0%, #0D2440 50%, #0F2D52 100%);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(10,26,47,0.5);
+    }
+    .login-brand {
+      font-size: 2.5rem;
+      color: var(--turquesa);
+    }
+    .login-brand-text {
+      font-family: 'Montserrat', 'Inter', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--obsidiana);
+    }
+    .form-control:focus {
+      border-color: var(--turquesa);
+      box-shadow: 0 0 0 0.2rem rgba(27,166,166,0.2);
+    }
+    .btn-login {
+      background: var(--turquesa);
+      border: none;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      padding: 0.6rem;
+      border-radius: 8px;
+      transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-login:hover {
+      background: var(--turquesa-dark);
+      color: #fff;
+    }
+    .btn-empresa {
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.8);
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.45rem 1rem;
+      border-radius: 8px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-empresa:hover {
+      background: var(--turquesa);
+      border-color: var(--turquesa);
+      color: #fff;
+    }
+    .input-group-text {
+      cursor: default;
+    }
+    .theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+    }
+    .login-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: rgba(255,255,255,0.4);
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+    .login-divider::before, .login-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.15);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Theme toggle -->
+<button class="btn btn-outline-secondary btn-sm theme-toggle" id="themeBtn" title="Cambiar tema">
+  <i id="themeIcon" class="bi bi-moon"></i>
+</button>
+
+<div class="d-flex flex-column align-items-center gap-3">
+  <div class="login-card card border-0">
+    <div class="card-body p-4 p-md-5">
+      <!-- Brand -->
+      <div class="text-center mb-4">
+        <div class="login-brand"><i class="bi bi-tools"></i></div>
+        <div class="login-brand-text">Taller Carpintería</div>
+        <small class="text-muted">Sistema de Gestión</small>
+      </div>
+
+      <!-- Error alert -->
+      {% if error %}
+      <div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert">
+        <i class="bi bi-exclamation-circle-fill"></i>
+        <span>{{ error }}</span>
+      </div>
+      {% endif %}
+
+      <!-- Form -->
+      <form method="POST" action="/login" autocomplete="on">
+        <div class="mb-3">
+          <label for="username" class="form-label fw-semibold">Usuario</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-person"></i></span>
+            <input type="text" class="form-control" id="username" name="username"
+                   placeholder="Nombre de usuario" required autofocus
+                   value="{{ username or '' }}">
+          </div>
+        </div>
+        <div class="mb-4">
+          <label for="password" class="form-label fw-semibold">Contraseña</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <input type="password" class="form-control" id="password" name="password"
+                   placeholder="••••••••" required>
+            <button type="button" class="btn btn-outline-secondary" id="togglePwd" tabindex="-1">
+              <i class="bi bi-eye" id="eyeIcon"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-login w-100">
+          <i class="bi bi-box-arrow-in-right me-1"></i>Iniciar Sesión
+        </button>
+      </form>
+
+      <hr class="my-4">
+      <p class="text-center text-muted small mb-0">
+        <i class="bi bi-shield-lock me-1"></i>Acceso restringido — Solo personal autorizado
+      </p>
+    </div>
+  </div>
+
+  <!-- Botón página de empresa -->
+  <div class="login-divider my-1">YekFlow</div>
+  <a href="https://yekflow.com.mx" target="_blank" class="btn-empresa">
+    <i class="bi bi-globe2"></i>
+    Ir a página de empresa
+    <i class="bi bi-arrow-right" style="font-size:0.75rem;"></i>
+  </a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Mostrar/ocultar contraseña
+  document.getElementById('togglePwd').addEventListener('click', function() {
+    const inp = document.getElementById('password');
+    const icon = document.getElementById('eyeIcon');
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      icon.className = 'bi bi-eye-slash';
+    } else {
+      inp.type = 'password';
+      icon.className = 'bi bi-eye';
+    }
+  });
+  // Dark mode toggle
+  (function() {
+    const btn = document.getElementById('themeBtn');
+    const icon = document.getElementById('themeIcon');
+    function applyTheme(t) {
+      document.documentElement.setAttribute('data-bs-theme', t);
+      localStorage.setItem('theme', t);
+      icon.className = t === 'dark' ? 'bi bi-sun-fill text-warning' : 'bi bi-moon';
+    }
+    applyTheme(localStorage.getItem('theme') || 'light');
+    btn.addEventListener('click', function() {
+      applyTheme(document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark');
+    });
+  })();
+</script>
+</body>
+</html>

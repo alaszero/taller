@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Taller Carpintería{% endblock %}</title>
+  <!-- Aplicar tema guardado antes de renderizar (evita flash) -->
+  <script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-bs-theme',t);})();</script>
+  <!-- Google Fonts (YekFlow) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- DataTables -->
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <!-- Flatpickr -->
+  <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+  <!-- Custom -->
+  <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+
+<!-- ══ Sidebar Desktop (visible >= md) ══ -->
+<div class="sidebar d-none d-md-flex" id="sidebarDesktop">
+  <div class="sidebar-brand">
+    <i class="bi bi-tools"></i>
+    <span>Taller</span>
+  </div>
+  <nav class="sidebar-nav">
+    {% include '_sidebar_nav.html' %}
+  </nav>
+  <div class="sidebar-footer">
+    {% if current_user %}
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <i class="bi bi-person-circle text-muted"></i>
+      <span class="text-muted small text-truncate" style="max-width:110px;" title="{{ current_user.nombre }}">{{ current_user.nombre }}</span>
+    </div>
+    <a href="/logout" class="btn btn-sm btn-outline-secondary w-100 mb-1" style="font-size:0.75rem;">
+      <i class="bi bi-box-arrow-left me-1"></i>Cerrar Sesión
+    </a>
+    {% endif %}
+    <small class="text-muted d-block">Sistema de Taller v{{ system_version | default('2.0.0') }}</small>
+    <small class="text-muted opacity-75">By <span class="fw-semibold">Barrón</span></small>
+  </div>
+</div>
+
+<!-- ══ Sidebar Mobile (Offcanvas, visible < md) ══ -->
+<div class="offcanvas offcanvas-start d-md-none" tabindex="-1" id="sidebarMobile"
+     style="width:260px; background:var(--primary); color:#fff;">
+  <div class="offcanvas-header" style="border-bottom:1px solid rgba(255,255,255,0.15);">
+    <h5 class="offcanvas-title text-white mb-0">
+      <i class="bi bi-tools me-2"></i>Taller
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+  </div>
+  <div class="offcanvas-body p-0 d-flex flex-column">
+    <nav class="sidebar-nav flex-grow-1">
+      {% include '_sidebar_nav.html' %}
+    </nav>
+    <div class="sidebar-footer px-3 pb-3">
+      {% if current_user %}
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-person-circle text-muted"></i>
+        <span class="text-muted small text-truncate" style="max-width:150px;" title="{{ current_user.nombre }}">{{ current_user.nombre }}</span>
+      </div>
+      <a href="/logout" class="btn btn-sm btn-outline-light w-100 mb-2" style="font-size:0.8rem;">
+        <i class="bi bi-box-arrow-left me-1"></i>Cerrar Sesión
+      </a>
+      {% endif %}
+      <small class="text-muted d-block">Sistema de Taller v{{ system_version | default('2.0.0') }}</small>
+      <small class="text-muted opacity-75">By <span class="fw-semibold">Barrón</span></small>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Main content ══ -->
+<div class="main-content" id="mainContent">
+  <!-- Top bar -->
+  <div class="topbar">
+    <!-- Hamburger: desktop toggle -->
+    <button class="btn btn-link sidebar-toggle d-none d-md-inline-block" id="sidebarToggle">
+      <i class="bi bi-list fs-4"></i>
+    </button>
+    <!-- Hamburger: mobile offcanvas -->
+    <button class="btn btn-link sidebar-toggle d-md-none" data-bs-toggle="offcanvas" data-bs-target="#sidebarMobile">
+      <i class="bi bi-list fs-4"></i>
+    </button>
+
+    <h5 class="mb-0 fw-semibold text-truncate">{% block page_title %}{% endblock %}</h5>
+
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <span class="text-muted small d-none d-sm-inline" id="currentDate"></span>
+      {% if current_user %}
+      <!-- Indicador / switcher de taller -->
+      {% if current_taller_id == "__all__" %}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-warning text-dark dropdown-toggle" type="button" data-bs-toggle="dropdown" title="Vista global — clic para cambiar taller">
+            <i class="bi bi-globe2 me-1"></i><span class="d-none d-sm-inline">Vista Global</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" id="tallerSwitcherMenu" style="min-width:180px;">
+            <li><h6 class="dropdown-header">Cambiar contexto</h6></li>
+            <li><button class="dropdown-item" onclick="switchTaller('__all__')"><i class="bi bi-globe2 me-1"></i>Vista Global</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <!-- talleres se cargan vía JS -->
+          </ul>
+        </div>
+      {% elif current_taller_id %}
+        {% if current_user.nivel == 'yekflow' %}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" title="Taller activo — clic para cambiar">
+            <i class="bi bi-shop me-1"></i><span class="d-none d-sm-inline">{{ current_taller_nombre }}</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" id="tallerSwitcherMenu" style="min-width:180px;">
+            <li><h6 class="dropdown-header">Cambiar taller</h6></li>
+            <li><button class="dropdown-item" onclick="switchTaller('__all__')"><i class="bi bi-globe2 me-1"></i>Vista Global</button></li>
+            <li><hr class="dropdown-divider"></li>
+          </ul>
+        </div>
+        {% else %}
+        <span class="badge bg-secondary" title="Taller activo">
+          <i class="bi bi-shop me-1"></i><span class="d-none d-sm-inline">{{ current_taller_nombre }}</span>
+        </span>
+        {% endif %}
+      {% endif %}
+      <!-- Badge de alertas activas -->
+      {% if current_user %}
+      <button class="btn btn-link text-muted p-1 position-relative" id="btnAlertas" title="Alertas" onclick="window.location='/admin#cardAlertas'" style="font-size:18px;line-height:1;">
+        <i class="bi bi-bell"></i>
+        <span id="badgeAlertas" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:.6rem;display:none;">0</span>
+      </button>
+      {% endif %}
+      <!-- Logout mobile (solo visible < md) -->
+      <a href="/logout" class="btn btn-outline-secondary btn-sm d-md-none" title="Cerrar Sesión">
+        <i class="bi bi-box-arrow-left"></i>
+      </a>
+      {% endif %}
+      <button class="btn btn-link text-muted p-1 ms-1" id="darkModeToggle" title="Cambiar tema" style="font-size:18px;line-height:1;">
+        <i id="darkModeIcon" class="bi bi-moon"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Page content -->
+  <div class="page-content">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+<!-- ══ Session timeout warning ══ -->
+{% if current_user %}
+<div id="sessionWarning" class="position-fixed top-0 start-50 translate-middle-x mt-2 alert alert-warning shadow-lg d-none"
+     style="z-index:9999; max-width:420px; font-size:0.9rem;" role="alert">
+  <i class="bi bi-clock-history me-1"></i>
+  Tu sesión expira en <strong id="sessionCountdown">2:00</strong> min.
+  <a href="#" onclick="location.reload(); return false;" class="alert-link ms-2">Renovar</a>
+</div>
+{% endif %}
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<!-- DataTables -->
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<!-- Flatpickr -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Custom JS -->
+<script src="/static/js/main.js"></script>
+<script>
+  // Reloj en vivo: fecha completa + hora, actualiza cada segundo
+  function _actualizarReloj() {
+    const now  = new Date();
+    const fecha = now.toLocaleDateString('es-MX', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+    const hora  = now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    const el = document.getElementById('currentDate');
+    if (el) el.textContent = fecha + '  ·  ' + hora;
+  }
+  _actualizarReloj();
+  setInterval(_actualizarReloj, 1000);
+
+  // Sidebar toggle (desktop only)
+  document.getElementById('sidebarToggle')?.addEventListener('click', function() {
+    document.getElementById('sidebarDesktop').classList.toggle('collapsed');
+    document.getElementById('mainContent').classList.toggle('expanded');
+  });
+
+  // Dark mode toggle
+  (function() {
+    const icon = document.getElementById('darkModeIcon');
+    const btn  = document.getElementById('darkModeToggle');
+    function applyTheme(t) {
+      document.documentElement.setAttribute('data-bs-theme', t);
+      localStorage.setItem('theme', t);
+      icon.className = t === 'dark' ? 'bi bi-sun-fill text-warning' : 'bi bi-moon';
+    }
+    applyTheme(localStorage.getItem('theme') || 'light');
+    btn.addEventListener('click', function() {
+      applyTheme(document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark');
+    });
+  })();
+
+  // Session timeout countdown (client-side)
+  {% if current_user %}
+  (function() {
+    var TIMEOUT_MS = {{ session_timeout_minutes }} * 60 * 1000;
+    var WARN_BEFORE_MS = 2 * 60 * 1000;
+    var lastActivity = Date.now();
+
+    ['click','keydown','scroll','touchstart'].forEach(function(evt) {
+      document.addEventListener(evt, function() { lastActivity = Date.now(); }, { passive: true });
+    });
+
+    setInterval(function() {
+      var elapsed = Date.now() - lastActivity;
+      var remaining = TIMEOUT_MS - elapsed;
+      var warningEl = document.getElementById('sessionWarning');
+      var countdownEl = document.getElementById('sessionCountdown');
+      if (!warningEl || !countdownEl) return;
+
+      if (remaining <= 0) {
+        window.location.href = '/login';
+        return;
+      }
+      if (remaining <= WARN_BEFORE_MS) {
+        var secs = Math.ceil(remaining / 1000);
+        var m = Math.floor(secs / 60);
+        var s = secs % 60;
+        countdownEl.textContent = m + ':' + String(s).padStart(2, '0');
+        warningEl.classList.remove('d-none');
+      } else {
+        warningEl.classList.add('d-none');
+      }
+    }, 1000);
+  })();
+  {% endif %}
+</script>
+<!-- Generador de códigos automáticos (compartido por todas las páginas) -->
+<script>
+/**
+ * Obtiene el siguiente código secuencial desde el servidor.
+ * @param {string} prefix  p.ej. 'MAT', 'HER', 'EMP', 'PROY', 'MUE', 'UB', 'OP'
+ * @returns {Promise<string>}
+ */
+async function fetchNextCode(prefix) {
+  try {
+    const r = await fetch(`/api/next_code?prefix=${encodeURIComponent(prefix)}`);
+    const d = await r.json();
+    return d.code || (prefix + '001');
+  } catch {
+    return prefix + '001';
+  }
+}
+</script>
+{% if current_user and current_user.nivel == 'yekflow' %}
+<script>
+// ── Taller switcher para nivel yekflow ────────────────────────────────────────
+(function() {
+  // Cargar talleres disponibles y poblar el dropdown
+  async function cargarTalleres() {
+    const menu = document.getElementById('tallerSwitcherMenu');
+    if (!menu) return;
+    try {
+      const r = await fetch('/api/talleres');
+      const talleres = await r.json();
+      // Limpiar ítems dinámicos anteriores (dejar el header y divider fijos)
+      const dinamicos = menu.querySelectorAll('.taller-item');
+      dinamicos.forEach(el => el.remove());
+      talleres.forEach(t => {
+        if (t.activo == 0) return;
+        const li = document.createElement('li');
+        li.className = 'taller-item';
+        li.innerHTML = `<button class="dropdown-item" onclick="switchTaller('${t.id}')"><i class="bi bi-shop me-1"></i>${t.nombre}</button>`;
+        menu.appendChild(li);
+      });
+    } catch(e) { console.warn('No se pudieron cargar talleres', e); }
+  }
+
+  window.switchTaller = async function(tallerId) {
+    try {
+      const r = await fetch('/api/switch_taller', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({taller_id: tallerId}),
+      });
+      const d = await r.json();
+      if (d.ok) window.location.reload();
+    } catch(e) { console.error('Error al cambiar taller', e); }
+  };
+
+  // Poblar dropdown al abrir
+  document.querySelectorAll('[id="tallerSwitcherMenu"]').forEach(menu => {
+    const parent = menu.closest('.dropdown');
+    if (parent) {
+      parent.addEventListener('show.bs.dropdown', cargarTalleres);
+    }
+  });
+})();
+</script>
+{% endif %}
+{% block scripts %}{% endblock %}
+{% if current_user %}
+<script>
+// Badge de alertas en topbar
+(function(){
+  async function actualizarBadgeAlertas(){
+    try{
+      const r = await fetch('/api/sistema/alertas');
+      if(!r.ok) return;
+      const alertas = await r.json();
+      const badge = document.getElementById('badgeAlertas');
+      if(!badge) return;
+      if(alertas.length > 0){
+        badge.textContent = alertas.length > 99 ? '99+' : alertas.length;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    }catch(e){}
+  }
+  document.addEventListener('DOMContentLoaded', actualizarBadgeAlertas);
+})();
+</script>
+{% endif %}
+</body>
+</html>

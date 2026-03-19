@@ -1,0 +1,89 @@
+  <!-- Catálogo materiales -->
+  <div class="tab-pane fade" id="tabCatalogo">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+          <span>Catálogo de materiales</span>
+          <select class="form-select form-select-sm w-auto" id="filtroTipoCat" onchange="cargarCatalogo()">
+            <option value="">Todos los tipos</option>
+            <option>Tablero</option>
+            <option>Madera sólida</option>
+            <option>Herraje</option>
+            <option>Acabado</option>
+            <option>Consumible</option>
+            <option>Iluminación</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="cargarCatalogo()" title="Actualizar">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-primary" onclick="abrirModalMaterial()">
+            <i class="bi bi-plus-lg me-1"></i>Agregar material
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover dt-table" id="tablaMateriales">
+            <thead><tr>
+              <th>Código</th><th>Tipo</th><th>Descripción</th><th>Unidad</th><th>Stock mín.</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- Modal: Agregar / Editar Material -->
+<div class="modal fade" id="modalMaterial" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="matModalTitle"><i class="bi bi-plus-circle me-2"></i>Agregar Material</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label">Código</label>
+            <div class="input-group">
+              <input type="text" class="form-control font-monospace" id="matCodigo" readonly
+                title="Código generado automáticamente">
+              <span class="input-group-text text-muted" title="Generado automáticamente">
+                <i class="bi bi-magic"></i>
+              </span>
+            </div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Tipo *</label>
+            <select class="form-select" id="matTipo">
+              <option>Tablero</option><option>Madera sólida</option><option>Herraje</option>
+              <option>Acabado</option><option>Consumible</option><option>Iluminación</option><option>Otro</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Descripción *</label>
+            <input type="text" class="form-control" id="matDesc" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Unidad *</label>
+            <input type="text" class="form-control" id="matUnidad" placeholder="pza / lt / kg / m">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Stock mínimo</label>
+            <input type="number" class="form-control" id="matStockMin" min="0" value="5">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" id="matGuardarBtn" onclick="guardarMaterial()">
+          <i class="bi bi-save me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

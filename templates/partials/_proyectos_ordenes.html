@@ -1,0 +1,102 @@
+  <!-- Órdenes de Producción -->
+  <div class="tab-pane fade" id="tabOP">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+          <span>Órdenes de producción</span>
+          <select class="form-select form-select-sm w-auto" id="filtroObraOP" onchange="filtrarOP()">
+            <option value="">Todas las obras</option>
+          </select>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="cargarDatos()" title="Actualizar">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-success" onclick="abrirModalOP()">
+            <i class="bi bi-plus-lg me-1"></i>Nueva OP
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover dt-table" id="tablaOP">
+            <thead><tr>
+              <th>ID OP</th><th>Proyecto</th><th>Mueble</th><th>Etapa</th><th>Cant.</th>
+              <th>Inicio plan.</th><th>Fin plan.</th><th>Inicio real</th><th>Fin real</th><th>Responsable</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- ══ Modal OP (Nuevo / Editar) ══ -->
+<div class="modal fade" id="modalOP" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalOPTitle">
+          <i class="bi bi-clipboard-check me-2"></i>Nueva Orden de Producción
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <!-- Fila 1: ID auto + Obra + Mueble filtrado -->
+          <div class="col-4">
+            <label class="form-label">ID OP</label>
+            <div class="input-group">
+              <input type="text" class="form-control font-monospace" id="opID" readonly>
+              <span class="input-group-text text-muted" id="opIDIcon"><i class="bi bi-magic"></i></span>
+            </div>
+          </div>
+          <div class="col-4">
+            <label class="form-label">Obra / Proyecto *</label>
+            <select class="form-select" id="opObra" onchange="filtrarMueblesOP()"></select>
+          </div>
+          <div class="col-4">
+            <label class="form-label">Mueble *</label>
+            <select class="form-select" id="opMueble"></select>
+          </div>
+          <!-- Fila 2: Etapa + Cantidad + Responsable -->
+          <div class="col-4">
+            <label class="form-label">Etapa *</label>
+            <select class="form-select" id="opEtapa"></select>
+          </div>
+          <div class="col-4">
+            <label class="form-label">Cantidad</label>
+            <input type="number" class="form-control" id="opCantidad" value="1" min="1">
+          </div>
+          <div class="col-4">
+            <label class="form-label">Responsable</label>
+            <select class="form-select" id="opResponsable"></select>
+          </div>
+          <!-- Fila 3: Fechas -->
+          <div class="col-3">
+            <label class="form-label">Inicio planeado</label>
+            <input type="text" class="form-control" id="opIniPlan">
+          </div>
+          <div class="col-3">
+            <label class="form-label">Fin planeado</label>
+            <input type="text" class="form-control" id="opFinPlan">
+          </div>
+          <div class="col-3">
+            <label class="form-label">Inicio real</label>
+            <input type="text" class="form-control" id="opIniReal">
+          </div>
+          <div class="col-3">
+            <label class="form-label">Fin real</label>
+            <input type="text" class="form-control" id="opFinReal">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-success" id="btnGuardarOP" onclick="guardarOP()">
+          <i class="bi bi-save me-1"></i>Guardar OP
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

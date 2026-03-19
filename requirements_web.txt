@@ -1,0 +1,7 @@
+# requirements_web.txt — Dependencias para la versión de producción (Hostinger)
+# Instalar con: pip install -r requirements_web.txt
+#
+# Nota: sqlite3 es parte de la biblioteca estándar de Python,
+#       no requiere instalación adicional.
+
+flask>=3.0.0

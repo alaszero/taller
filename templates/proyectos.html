@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Proyectos{% endblock %}
+{% block page_title %}Proyectos y Órdenes de Producción{% endblock %}
+
+{% block content %}
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabProyectos">
+    <i class="bi bi-briefcase me-1"></i>Proyectos</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabMuebles">
+    <i class="bi bi-grid me-1"></i>Muebles</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabOP">
+    <i class="bi bi-clipboard-check me-1"></i>Órdenes de Producción</button></li>
+</ul>
+
+<div class="tab-content">
+  {% include "partials/_proyectos_lista.html" %}
+
+  {% include "partials/_proyectos_muebles.html" %}
+
+  {% include "partials/_proyectos_ordenes.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% include "partials/_proyectos_scripts.html" %}
+{% endblock %}

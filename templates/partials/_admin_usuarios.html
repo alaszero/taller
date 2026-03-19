@@ -1,0 +1,335 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     GESTIÓN DE USUARIOS
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="card border-primary mb-4">
+  <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center gap-2">
+    <i class="bi bi-people-fill text-primary fs-5"></i>
+    <span class="fw-semibold">Gestión de Usuarios</span>
+    <button class="btn btn-primary btn-sm ms-auto" onclick="abrirModalUsuario()">
+      <i class="bi bi-person-plus me-1"></i>Nuevo Usuario
+    </button>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm mb-0" id="tablaUsuarios">
+        <thead class="table-light">
+          <tr>
+            <th>Usuario</th>
+            <th>Nombre</th>
+            <th>Nivel</th>
+            <th>Estado</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="bodyUsuarios">
+          <tr><td colspan="5" class="text-center text-muted py-3">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Crear/Editar Usuario -->
+<div class="modal fade" id="modalUsuario" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalUsuarioTitulo">Nuevo Usuario</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="usuarioEditando">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Usuario <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="usr_username" placeholder="sin espacios, minúsculas">
+          <div class="form-text">No se puede cambiar después de crear.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Nombre completo</label>
+          <input type="text" class="form-control" id="usr_nombre" placeholder="Nombre para mostrar">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Nivel <span class="text-danger">*</span></label>
+          <select class="form-select" id="usr_nivel" onchange="onNivelChange()">
+            <option value="superusuario">Superusuario — Acceso total</option>
+            <option value="administrador">Administrador — Sin Admin/Implementación</option>
+            <option value="supervisor">Supervisor — Solo Proyectos y Avance</option>
+            <option value="almacen" selected>Almacén — Solo Almacén y Herramientas</option>
+          </select>
+        </div>
+        <!-- Checkboxes de secciones (permisos modulares) -->
+        <div class="mb-3" id="usr_secciones_wrap">
+          <label class="form-label fw-semibold">Secciones permitidas</label>
+          <div class="row g-1">
+            <div class="col-6"><div class="form-check">
+              <input class="form-check-input seccion-check" type="checkbox" value="dashboard" id="sec_dashboard">
+              <label class="form-check-label small" for="sec_dashboard">Dashboard</label>
+            </div></div>
+            <div class="col-6"><div class="form-check">
+              <input class="form-check-input seccion-check" type="checkbox" value="almacen" id="sec_almacen">
+              <label class="form-check-label small" for="sec_almacen">Almacén</label>
+            </div></div>
+            <div class="col-6"><div class="form-check">
+              <input class="form-check-input seccion-check" type="checkbox" value="herramientas" id="sec_herramientas">
+              <label class="form-check-label small" for="sec_herramientas">Herramientas</label>
+            </div></div>
+            <div class="col-6"><div class="form-check">
+              <input class="form-check-input seccion-check" type="checkbox" value="proyectos" id="sec_proyectos">
+              <label class="form-check-label small" for="sec_proyectos">Proyectos</label>
+            </div></div>
+            <div class="col-6"><div class="form-check">
+              <input class="form-check-input seccion-check" type="checkbox" value="avance" id="sec_avance">
+              <label class="form-check-label small" for="sec_avance">Avance de Obras</label>
+            </div></div>
+            <div class="col-6"><div class="form-check">
+              <input class="form-check-input seccion-check" type="checkbox" value="empleados" id="sec_empleados">
+              <label class="form-check-label small" for="sec_empleados">Empleados</label>
+            </div></div>
+            <div class="col-6"><div class="form-check">
+              <input class="form-check-input seccion-check" type="checkbox" value="implementacion" id="sec_implementacion">
+              <label class="form-check-label small" for="sec_implementacion">Implementación</label>
+            </div></div>
+            <div class="col-6"><div class="form-check">
+              <input class="form-check-input seccion-check" type="checkbox" value="admin" id="sec_admin">
+              <label class="form-check-label small" for="sec_admin">Administración</label>
+            </div></div>
+          </div>
+          <div class="form-text">Al cambiar el nivel se precargan las secciones por defecto. Puedes personalizarlas.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" id="usr_pwd_label">Contraseña <span class="text-danger">*</span></label>
+          <div class="input-group">
+            <input type="password" class="form-control" id="usr_password" placeholder="••••••••">
+            <button type="button" class="btn btn-outline-secondary" id="togglePwdAdmin" tabindex="-1">
+              <i class="bi bi-eye" id="eyePwdAdmin"></i>
+            </button>
+          </div>
+          <div class="form-text" id="usr_pwd_help">Mínimo 4 caracteres.</div>
+        </div>
+        <div class="mb-2" id="usr_activo_wrap" style="display:none;">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="usr_activo" checked>
+            <label class="form-check-label" for="usr_activo">Cuenta activa</label>
+          </div>
+        </div>
+        <div id="usr_error" class="alert alert-danger d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="guardarUsuario()">
+          <i class="bi bi-check2 me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Gestión de Usuarios ────────────────────────────────────────────────────────
+
+const _modalUsuario = new bootstrap.Modal(document.getElementById('modalUsuario'));
+
+// Secciones por defecto según nivel (debe coincidir con DEFAULT_SECCIONES del backend)
+const DEFAULT_SECCIONES = {
+  superusuario:  'dashboard,almacen,herramientas,proyectos,avance,empleados,implementacion,admin',
+  administrador: 'dashboard,almacen,herramientas,proyectos,avance,empleados',
+  supervisor:    'proyectos,avance',
+  almacen:       'almacen,herramientas',
+};
+
+const ALL_SECCIONES = ['dashboard','almacen','herramientas','proyectos','avance','empleados','implementacion','admin'];
+
+// Auto-popular checkboxes al cambiar nivel
+function onNivelChange() {
+  const nivel = document.getElementById('usr_nivel').value;
+  const defaults = (DEFAULT_SECCIONES[nivel] || '').split(',');
+  ALL_SECCIONES.forEach(s => {
+    const cb = document.getElementById('sec_' + s);
+    if (cb) cb.checked = defaults.includes(s);
+  });
+}
+
+// Leer checkboxes y devolver string separado por comas
+function getSeccionesFromCheckboxes() {
+  return ALL_SECCIONES.filter(s => {
+    const cb = document.getElementById('sec_' + s);
+    return cb && cb.checked;
+  }).join(',');
+}
+
+// Marcar checkboxes según string de secciones
+function setSeccionesCheckboxes(seccionesStr) {
+  const lista = (seccionesStr || '').split(',').map(s => s.trim());
+  ALL_SECCIONES.forEach(s => {
+    const cb = document.getElementById('sec_' + s);
+    if (cb) cb.checked = lista.includes(s);
+  });
+}
+
+async function cargarUsuarios() {
+  try {
+    const r = await fetch('/api/admin/usuarios');
+    if (!r.ok) return;
+    const users = await r.json();
+    const nivelBadge = {
+      superusuario:  '<span class="badge bg-danger">Superusuario</span>',
+      administrador: '<span class="badge bg-warning text-dark">Administrador</span>',
+      supervisor:    '<span class="badge bg-info text-dark">Supervisor</span>',
+      almacen:       '<span class="badge bg-secondary">Almacén</span>',
+    };
+    const body = document.getElementById('bodyUsuarios');
+    if (!users.length) {
+      body.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Sin usuarios</td></tr>';
+      return;
+    }
+    body.innerHTML = users.map(u => {
+      const secEsc = (u.secciones || '').replace(/'/g, "\\'");
+      return `
+      <tr>
+        <td class="fw-semibold">${u.username}</td>
+        <td>${u.nombre || '—'}</td>
+        <td>${nivelBadge[u.nivel] || u.nivel}</td>
+        <td>${u.activo === '1'
+          ? '<span class="badge bg-success">Activo</span>'
+          : '<span class="badge bg-secondary">Inactivo</span>'}</td>
+        <td class="text-center">
+          <button class="btn btn-outline-primary btn-sm me-1" onclick="editarUsuario('${u.username}','${(u.nombre||'').replace(/'/g,"\\'")}','${u.nivel}','${u.activo}','${secEsc}')">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-outline-danger btn-sm" onclick="eliminarUsuario('${u.username}')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) {}
+}
+
+function abrirModalUsuario() {
+  document.getElementById('modalUsuarioTitulo').textContent = 'Nuevo Usuario';
+  document.getElementById('usuarioEditando').value = '';
+  document.getElementById('usr_username').value = '';
+  document.getElementById('usr_username').disabled = false;
+  document.getElementById('usr_nombre').value = '';
+  document.getElementById('usr_nivel').value = 'almacen';
+  document.getElementById('usr_password').value = '';
+  document.getElementById('usr_pwd_label').innerHTML = 'Contraseña <span class="text-danger">*</span>';
+  document.getElementById('usr_pwd_help').textContent = 'Mínimo 4 caracteres.';
+  document.getElementById('usr_activo_wrap').style.display = 'none';
+  document.getElementById('usr_error').classList.add('d-none');
+  onNivelChange();  // Auto-popular checkboxes según nivel por defecto
+  _modalUsuario.show();
+}
+
+function editarUsuario(username, nombre, nivel, activo, secciones) {
+  document.getElementById('modalUsuarioTitulo').textContent = 'Editar Usuario';
+  document.getElementById('usuarioEditando').value = username;
+  document.getElementById('usr_username').value = username;
+  document.getElementById('usr_username').disabled = true;
+  document.getElementById('usr_nombre').value = nombre;
+  document.getElementById('usr_nivel').value = nivel;
+  document.getElementById('usr_password').value = '';
+  document.getElementById('usr_pwd_label').textContent = 'Nueva Contraseña';
+  document.getElementById('usr_pwd_help').textContent = 'Dejar vacío para no cambiarla.';
+  document.getElementById('usr_activo').checked = activo === '1';
+  document.getElementById('usr_activo_wrap').style.display = '';
+  document.getElementById('usr_error').classList.add('d-none');
+  // Marcar checkboxes: si tiene secciones guardadas usarlas, si no usar defaults del nivel
+  if (secciones) {
+    setSeccionesCheckboxes(secciones);
+  } else {
+    onNivelChange();
+  }
+  _modalUsuario.show();
+}
+
+async function guardarUsuario() {
+  const editando = document.getElementById('usuarioEditando').value;
+  const username = document.getElementById('usr_username').value.trim();
+  const nombre   = document.getElementById('usr_nombre').value.trim();
+  const nivel    = document.getElementById('usr_nivel').value;
+  const password = document.getElementById('usr_password').value;
+  const activo   = document.getElementById('usr_activo').checked;
+  const secciones = getSeccionesFromCheckboxes();
+  const errEl    = document.getElementById('usr_error');
+
+  errEl.classList.add('d-none');
+
+  if (!editando && (!username || !password)) {
+    errEl.textContent = 'Usuario y contraseña son obligatorios.';
+    errEl.classList.remove('d-none');
+    return;
+  }
+
+  if (!secciones) {
+    errEl.textContent = 'Debe seleccionar al menos una sección.';
+    errEl.classList.remove('d-none');
+    return;
+  }
+
+  let url, body;
+  if (editando) {
+    url  = `/api/admin/usuarios/${encodeURIComponent(editando)}`;
+    body = { nombre, nivel, activo, secciones };
+    if (password) body.password = password;
+  } else {
+    url  = '/api/admin/usuarios';
+    body = { username, nombre, nivel, password, secciones };
+  }
+
+  try {
+    const r = await fetch(url, {
+      method: editando ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      _modalUsuario.hide();
+      showToast(editando ? 'Usuario actualizado' : 'Usuario creado', 'success');
+      cargarUsuarios();
+    } else {
+      errEl.textContent = d.error || 'Error al guardar';
+      errEl.classList.remove('d-none');
+    }
+  } catch(e) {
+    errEl.textContent = 'Error de conexión';
+    errEl.classList.remove('d-none');
+  }
+}
+
+async function eliminarUsuario(username) {
+  if (!confirm(`¿Eliminar el usuario "${username}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    const r = await fetch(`/api/admin/usuarios/${encodeURIComponent(username)}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('Usuario eliminado', 'success');
+      cargarUsuarios();
+    } else {
+      showToast(d.error || 'Error al eliminar', 'danger');
+    }
+  } catch(e) {
+    showToast('Error de conexión', 'danger');
+  }
+}
+
+// ── Toggle visibilidad contraseña ──
+const togglePwdBtn = document.getElementById('togglePwdAdmin');
+if (togglePwdBtn) {
+  togglePwdBtn.addEventListener('click', function() {
+    const inp = document.getElementById('usr_password');
+    const icon = this.querySelector('i');
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      icon.classList.replace('bi-eye', 'bi-eye-slash');
+    } else {
+      inp.type = 'password';
+      icon.classList.replace('bi-eye-slash', 'bi-eye');
+    }
+  });
+}
+
+// Cargar usuarios al entrar
+cargarUsuarios();
+</script>

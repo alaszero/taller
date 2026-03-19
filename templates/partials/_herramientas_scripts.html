@@ -1,0 +1,523 @@
+<script>
+let herramientas=[], empleados=[], proyectos=[];
+let _prestHistData   = [];  // historial completo para reimpresión por folio
+let _prestActivosData = []; // préstamos activos para modal de devolución
+let _prestCarrito  = [];  // carrito multi-herramienta actual
+let _prestDisp     = [];  // copia de herramientas disponibles (para excluir del select)
+
+async function cargarDatos() {
+  const safe = url => fetch(url).then(r=>r.json()).catch(()=>[]);
+  [herramientas, empleados, proyectos] = await Promise.all([
+    safe('/api/herramientas'),
+    safe('/api/empleados'),
+    safe('/api/proyectos'),
+  ]);
+  cargarPrestadas();
+  cargarHistorial();
+  cargarCatalogo();
+}
+
+function estadoBadge(estado) {
+  if (estado==='Disponible') return '<span class="badge bg-success">Disponible</span>';
+  if (estado==='Prestada') return '<span class="badge bg-warning text-dark">Prestada</span>';
+  return `<span class="badge bg-secondary">${estado}</span>`;
+}
+
+function cargarPrestadas() {
+  fetch('/api/prestamos?activos=1').then(r=>r.json()).then(data => {
+    _prestActivosData = data;
+    destroyDT('#tablaPrestadas');
+    const tb = $('#tablaPrestadas tbody'); tb.empty();
+    if (data.length === 0) {
+      tb.append('<tr><td colspan="7" class="text-center text-success py-3">Sin préstamos activos</td></tr>');
+    } else {
+      // Agrupar por folio (o ID individual para registros legacy)
+      const grupos = {};
+      data.forEach(p => {
+        const key = p.Folio || p.ID_Prestamo;
+        if (!grupos[key]) grupos[key] = [];
+        grupos[key].push(p);
+      });
+      Object.entries(grupos).forEach(([key, items]) => {
+        const first = items[0];
+        const folioLbl = first.Folio
+          ? `<code style="font-size:10px;">${first.Folio}</code>`
+          : `<code style="font-size:10px;">${first.ID_Prestamo}</code>`;
+        const countBadge = items.length > 1
+          ? `<span class="badge bg-secondary ms-1" title="${items.map(p=>p.Herramienta).join(', ')}">${items.length}</span>`
+          : '';
+        const toolTitle = items.map(p => p.Herramienta).join(', ');
+        const reprintFn = first.Folio
+          ? `imprimirComprobanteFolio('${first.Folio}')`
+          : `imprimirComprobantePrestamo(${JSON.stringify(first).replace(/'/g,"&#39;")})`;
+        // Escapar key para uso seguro en atributo onclick
+        const keyEsc = key.replace(/'/g, "\\'");
+        tb.append(`<tr>
+          <td>${folioLbl}</td>
+          <td title="${toolTitle}">${first.Herramienta}${countBadge}</td>
+          <td>${first.Nombre_Responsable}</td>
+          <td>${first.Proyecto||'—'}</td>
+          <td>${first.FechaSalida}</td>
+          <td class="text-muted small">${first.Hora||'—'}</td>
+          <td class="d-flex gap-1">
+            <button class="btn btn-sm btn-success" onclick="abrirDevolucion('${keyEsc}')">
+              <i class="bi bi-box-arrow-in-left"></i> Devolver</button>
+            <button class="btn btn-sm btn-outline-secondary" title="Reimprimir comprobante"
+              onclick="${reprintFn}">
+              <i class="bi bi-printer"></i></button>
+          </td>
+        </tr>`);
+      });
+    }
+    initDT('#tablaPrestadas');
+  });
+}
+
+function cargarHistorial() {
+  fetch('/api/prestamos').then(r=>r.json()).then(data => {
+    _prestHistData = data;   // guardar para reimpresión por folio
+    destroyDT('#tablaHistorial');
+    const tb = $('#tablaHistorial tbody'); tb.empty();
+    data.forEach(p => {
+      const est = p.FechaDevolucion
+        ? '<span class="badge bg-secondary">Devuelta</span>'
+        : '<span class="badge bg-warning text-dark">Activo</span>';
+      const folioLbl = p.Folio
+        ? `<code style="font-size:10px;">${p.Folio}</code>`
+        : `<code style="font-size:10px;">${p.ID_Prestamo}</code>`;
+      const reprintFn = p.Folio
+        ? `imprimirComprobanteFolio('${p.Folio}')`
+        : `imprimirComprobantePrestamo(${JSON.stringify(p)})`;
+      tb.append(`<tr>
+        <td>${folioLbl}</td>
+        <td>${p.Herramienta}</td>
+        <td>${p.Nombre_Responsable}</td>
+        <td>${p.Proyecto||'—'}</td>
+        <td>${p.FechaSalida}</td>
+        <td class="text-muted small">${p.Hora||'—'}</td>
+        <td>${p.FechaDevolucion||'—'}</td>
+        <td>${est}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-secondary" title="Reimprimir comprobante"
+            onclick="${reprintFn}">
+            <i class="bi bi-printer"></i></button>
+        </td>
+      </tr>`);
+    });
+    initDT('#tablaHistorial');
+  });
+}
+
+function cargarCatalogo() {
+  // Siempre obtiene datos frescos del servidor (Estado se calcula dinámicamente en el backend)
+  fetch('/api/herramientas').then(r => r.json()).then(data => {
+    herramientas = data;  // actualiza el array global también
+    destroyDT('#tablaCatalogo');
+    const tb = $('#tablaCatalogo tbody'); tb.empty();
+    data.forEach(h => {
+      tb.append(`<tr>
+        <td><code>${h.ID_Herramienta}</code></td>
+        <td>${h.Herramienta}</td>
+        <td>${h.Marca} ${h.Modelo}</td>
+        <td>${h.Categoria}</td>
+        <td>${h['Ubicación_Base']||h.Ubicacion_Base||''}</td>
+        <td>${estadoBadge(h.Estado)}</td>
+      </tr>`);
+    });
+    initDT('#tablaCatalogo');
+  });
+}
+
+// ── Carrito multi-herramienta ────────────────────────────────────────────────
+function agregarHerramientaCarrito() {
+  const sel  = document.getElementById('pHerramienta');
+  const id   = sel.value;
+  if (!id) return showToast('Selecciona una herramienta', 'warning');
+  if (_prestCarrito.find(h => h.ID_Herramienta === id))
+    return showToast('Esa herramienta ya está en el listado', 'warning');
+  const herr = _prestDisp.find(h => h.ID_Herramienta === id);
+  if (!herr) return showToast('Herramienta no encontrada', 'warning');
+  _prestCarrito.push({ID_Herramienta: herr.ID_Herramienta, Herramienta: herr.Herramienta});
+  renderPrestamoCarrito();
+  // Quitar del select la herramienta ya agregada
+  sel.remove(sel.selectedIndex);
+  sel.value = '';
+}
+
+function quitarHerramientaCarrito(idx) {
+  const herr = _prestCarrito[idx];
+  _prestCarrito.splice(idx, 1);
+  // Devolver al select
+  const sel = document.getElementById('pHerramienta');
+  const opt = document.createElement('option');
+  opt.value = herr.ID_Herramienta;
+  opt.textContent = `${herr.ID_Herramienta} — ${herr.Herramienta}`;
+  sel.insertAdjacentElement('beforeend', opt);
+  renderPrestamoCarrito();
+}
+
+function renderPrestamoCarrito() {
+  const vacio = document.getElementById('prestCarritoVacio');
+  const tabla = document.getElementById('prestCarritoTable');
+  const tbody = document.getElementById('prestCarritoTbody');
+  const btn   = document.getElementById('btnGuardarPrest');
+  if (_prestCarrito.length === 0) {
+    vacio.style.display = '';
+    tabla.style.display = 'none';
+    btn.innerHTML = '<i class="bi bi-save me-1"></i>Registrar 0 herramientas';
+    return;
+  }
+  vacio.style.display = 'none';
+  tabla.style.display = '';
+  tbody.innerHTML = _prestCarrito.map((h, i) => `<tr>
+    <td class="text-muted text-center">${i+1}</td>
+    <td><code>${h.ID_Herramienta}</code></td>
+    <td>${h.Herramienta}</td>
+    <td class="text-center">
+      <button class="btn btn-xs btn-outline-danger" style="padding:1px 6px;font-size:11px;"
+        onclick="quitarHerramientaCarrito(${i})" title="Quitar"><i class="bi bi-trash"></i></button>
+    </td>
+  </tr>`).join('');
+  const n = _prestCarrito.length;
+  btn.innerHTML = `<i class="bi bi-save me-1"></i>Registrar ${n} herramienta${n!==1?'s':''}`;
+}
+
+function generarFolioP(prefijo) {
+  const n   = new Date();
+  const pad = v => String(v).padStart(2,'0');
+  const ts  = `${n.getFullYear()}${pad(n.getMonth()+1)}${pad(n.getDate())}-${pad(n.getHours())}${pad(n.getMinutes())}${pad(n.getSeconds())}`;
+  const rnd = String(Math.floor(Math.random()*100)).padStart(2,'0');
+  return `${prefijo}${ts}-${rnd}`;
+}
+
+async function abrirModalPrestamo() {
+  const [todos, activos] = await Promise.all([
+    fetch('/api/prestamos').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/prestamos?activos=1').then(r=>r.json()).catch(()=>[]),
+  ]);
+
+  // Herramientas disponibles (no prestadas actualmente)
+  const prestadosIds = new Set(activos.map(p => p.ID_Herramienta));
+  _prestDisp = herramientas.filter(h => !prestadosIds.has(h.ID_Herramienta));
+
+  // Reset carrito
+  _prestCarrito = [];
+  renderPrestamoCarrito();
+
+  poblarSelect('pHerramienta', _prestDisp, 'ID_Herramienta', h=>`${h.ID_Herramienta} — ${h.Herramienta}`);
+  poblarSelect('pResponsable', empleados, 'EmpleadoID', e=>`${e.Nombre} ${e.Apellido}`);
+  poblarSelect('pProyecto', proyectos, 'ID_Proyecto', p=>`${p.Nombre_Obra}`, '— Sin proyecto —');
+  document.getElementById('pObs').value = '';
+  flatpickr('#pFecha', {locale:'es', defaultDate:'today', dateFormat:'Y-m-d'});
+  new bootstrap.Modal(document.getElementById('modalPrestamo')).show();
+}
+
+async function guardarPrestamo() {
+  if (_prestCarrito.length === 0) return showToast('Agrega al menos una herramienta', 'warning');
+  const empId  = document.getElementById('pResponsable').value;
+  if (!empId) return showToast('Selecciona un responsable', 'warning');
+  const emp    = empleados.find(e => e.EmpleadoID === empId) || {};
+  const fecha  = document.getElementById('pFecha').value;
+  const proyId = document.getElementById('pProyecto').value;
+  const obs    = document.getElementById('pObs').value;
+  const folio  = generarFolioP('PREST');
+
+  // Generar IDs correlativos para cada herramienta
+  const [todos] = await Promise.all([
+    fetch('/api/prestamos').then(r=>r.json()).catch(()=>[]),
+  ]);
+  const nums = todos
+    .map(p => parseInt((p.ID_Prestamo||'').replace('PREST','')))
+    .filter(n => !isNaN(n));
+  let siguiente = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+
+  const batch = _prestCarrito.map(h => ({
+    ID_Prestamo:      `PREST${String(siguiente++).padStart(3,'0')}`,
+    FechaSalida:      fecha,
+    ID_Herramienta:   h.ID_Herramienta,
+    Herramienta:      h.Herramienta,
+    Responsable:      emp.EmpleadoID || '',
+    Nombre_Responsable: `${emp.Nombre||''} ${emp.Apellido||''}`.trim(),
+    Proyecto:         proyId,
+    FechaDevolucion:  '',
+    Observaciones:    obs,
+    Folio:            folio,
+  }));
+
+  const resp = await fetch('/api/prestamos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(batch)});
+  if (!resp.ok) return showToast('Error al registrar préstamos', 'danger');
+
+  bootstrap.Modal.getInstance(document.getElementById('modalPrestamo')).hide();
+  const n = _prestCarrito.length;
+  showToast(`${n} herramienta${n!==1?'s':''} registrada${n!==1?'s':''}`, 'success');
+  imprimirComprobantePrestamo(batch);
+  cargarDatos();
+}
+
+// ── Comprobante de préstamo (2 copias, acepta 1 ó N herramientas) ──────────
+function imprimirComprobantePrestamo(pOrArray) {
+  // Acepta: objeto único (legacy) o array de objetos del mismo folio
+  const items  = Array.isArray(pOrArray) ? pOrArray : [pOrArray];
+  const p0     = items[0];
+  const now    = new Date();
+  const hora   = p0.Hora || now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+  const fecha  = p0.FechaSalida || now.toLocaleDateString('es-MX');
+  const folio  = p0.Folio || p0.ID_Prestamo;
+  const proy   = proyectos.find(x => x.ID_Proyecto === p0.Proyecto);
+  const proyNombre = proy ? (proy.Nombre_Obra || p0.Proyecto) : (p0.Proyecto || '—');
+
+  const filasHerramientas = items.map(h => `<tr>
+    <td><strong>${h.ID_Herramienta}</strong></td>
+    <td>${h.Herramienta}</td>
+    <td style="text-align:center">☐ Bueno &nbsp; ☐ Regular &nbsp; ☐ Con daño</td>
+  </tr>`).join('');
+
+  const bloque = (copia) => `
+  <div class="comprobante">
+    <div class="logo-space"></div>
+    <div class="comp-header">
+      <div>
+        <div class="comp-title">COMPROBANTE DE PRÉSTAMO DE HERRAMIENTAS</div>
+        <div class="comp-sub">By Barrón · Sistema de Taller &nbsp;·&nbsp; ${copia}</div>
+      </div>
+      <div class="comp-folio">
+        <div>Folio: <strong>${folio}</strong></div>
+        <div>Fecha: <strong>${fecha}</strong></div>
+        <div>Hora: <strong>${hora}</strong></div>
+      </div>
+    </div>
+    <table class="comp-data">
+      <tr><td class="lbl">Responsable</td><td colspan="3">${p0.Nombre_Responsable}</td></tr>
+      <tr><td class="lbl">Proyecto</td><td colspan="3">${proyNombre}</td></tr>
+      ${p0.Observaciones ? `<tr><td class="lbl">Observaciones</td><td colspan="3">${p0.Observaciones}</td></tr>` : ''}
+    </table>
+    <table class="comp-tools">
+      <thead><tr>
+        <th style="width:80pt">ID</th>
+        <th>Herramienta</th>
+        <th style="width:130pt;text-align:center">Condición de entrega</th>
+      </tr></thead>
+      <tbody>${filasHerramientas}</tbody>
+    </table>
+    <div class="comp-firmas">
+      <div class="firma-box">Firma quien recibe<div class="firma-linea"></div><small>${p0.Nombre_Responsable}</small></div>
+      <div class="firma-box">Firma quien entrega<div class="firma-linea"></div><small>Almacén</small></div>
+      <div class="firma-box">Fecha devolución<div class="firma-linea"></div><small>&nbsp;</small></div>
+    </div>
+    <div class="firma-barron">BY BARRÓN &nbsp;·&nbsp; SISTEMA DE GESTIÓN DE TALLER</div>
+  </div>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Comprobante ${folio}</title>
+<style>
+  @page { size: A4 portrait; margin: 10mm 16mm 12mm 16mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:8.5pt; }
+  .comprobante { padding:6pt 0; }
+  .logo-space { height:22mm; border-bottom:2.5px solid #000; margin-bottom:6pt; }
+  .comp-header { display:flex; justify-content:space-between; align-items:flex-start;
+    margin-bottom:6pt; }
+  .comp-title { font-size:11pt; font-weight:700; }
+  .comp-sub  { font-size:7.5pt; color:#555; margin-top:2pt; }
+  .comp-folio { text-align:right; font-size:8pt; line-height:1.9; }
+  .comp-data { width:100%; border-collapse:collapse; margin-bottom:6pt; }
+  .comp-data td { border:1px solid #bbb; padding:3pt 5pt; font-size:8.5pt; vertical-align:middle; }
+  .comp-data td.lbl { background:#f4f4f4; font-weight:600; width:95pt; white-space:nowrap; }
+  .comp-tools { width:100%; border-collapse:collapse; margin-bottom:6pt; }
+  .comp-tools thead tr th { background:#333; color:#fff; font-size:7pt; padding:2.5pt 4pt;
+    text-transform:uppercase; letter-spacing:.04em; font-weight:700; text-align:left; }
+  .comp-tools tbody td { border:1px solid #ccc; padding:3pt 4pt; font-size:8pt; vertical-align:middle; }
+  .comp-firmas { display:flex; gap:16pt; margin-top:6pt; }
+  .firma-box { flex:1; text-align:center; font-size:7.5pt; color:#555; }
+  .firma-linea { border-top:1px solid #000; margin:16pt 0 3pt; }
+  .firma-barron { margin-top:5pt; padding-top:3pt; border-top:1px solid #ddd;
+    text-align:center; font-size:6.5pt; color:#bbb; letter-spacing:.06em; }
+  .corte { border-top:2px dashed #999; margin:8pt 0; text-align:center;
+    font-size:7pt; color:#999; letter-spacing:.05em; }
+</style></head><body>
+${bloque('COPIA — TRABAJADOR')}
+<div class="corte">✂ &nbsp; SEPARAR AQUÍ &nbsp; ✂</div>
+${bloque('COPIA — ALMACÉN')}
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=750,height=900');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+// ── Reimprimir comprobante agrupando por folio ──────────────────────────────
+function imprimirComprobanteFolio(folio) {
+  const items = _prestHistData.filter(p => p.Folio === folio);
+  if (!items.length) return showToast('No se encontraron registros para este folio', 'warning');
+  imprimirComprobantePrestamo(items);
+}
+
+// ── Inventario físico de herramientas ──
+function imprimirInventarioHerramientas() {
+  const today = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+  const filas = herramientas.map(h => `<tr>
+    <td>${h.ID_Herramienta}</td>
+    <td><strong>${h.Herramienta}</strong></td>
+    <td>${h.Marca||''} ${h.Modelo||''}</td>
+    <td>${h.NS||'—'}</td>
+    <td>${h.Categoria||'—'}</td>
+    <td>${h['Ubicación_Base']||h.Ubicacion_Base||'—'}</td>
+    <td class="campo">${h.Estado||''}</td>
+    <td class="campo"></td>
+    <td class="campo-nota"></td>
+  </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Inventario Herramientas — ${today}</title>
+<style>
+  @page { size: letter landscape; margin: 10mm 14mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:9pt; }
+  .doc-header { display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:2.5px solid #000; padding-bottom:5pt; margin-bottom:8pt; }
+  .doc-header h1 { font-size:13pt; font-weight:700; }
+  .doc-meta { text-align:right; font-size:8pt; line-height:1.8; }
+  .linea { display:inline-block; border-bottom:1px solid #000; min-width:90pt; margin-left:3pt; }
+  table { width:100%; border-collapse:collapse; }
+  th { background:#eee; font-size:7.5pt; font-weight:700; text-transform:uppercase;
+    letter-spacing:.03em; border:1px solid #aaa; padding:3pt 4pt; }
+  td { border:1px solid #bbb; padding:3pt 4pt; font-size:8.5pt; vertical-align:middle; }
+  td.campo { background:#fafafa; min-width:70pt; }
+  td.campo-nota { background:#fafafa; min-width:110pt; }
+  .firma-row { display:flex; gap:40pt; margin-top:18pt; }
+  .firma-box { flex:1; border-top:1px solid #000; padding-top:3pt; font-size:7.5pt; text-align:center; color:#555; }
+</style></head><body>
+<div class="doc-header">
+  <div>
+    <h1>Inventario Físico de Herramientas</h1>
+    <p style="font-size:8pt;color:#555;margin-top:2pt;">Verifica estado real vs. sistema. Marca diferencias en Observaciones.</p>
+  </div>
+  <div class="doc-meta">
+    <div>Impreso: ${today}</div>
+    <div>Fecha inventario: <span class="linea">&nbsp;</span></div>
+    <div>Realizado por: <span class="linea">&nbsp;</span></div>
+  </div>
+</div>
+<table>
+  <thead><tr>
+    <th style="width:65pt">ID</th>
+    <th>Herramienta</th>
+    <th style="width:90pt">Marca / Modelo</th>
+    <th style="width:70pt">N/S</th>
+    <th style="width:70pt">Categoría</th>
+    <th style="width:80pt">Ubicación</th>
+    <th style="width:70pt">Estado sistema</th>
+    <th style="width:70pt">Estado real</th>
+    <th>Observaciones</th>
+  </tr></thead>
+  <tbody>${filas}</tbody>
+</table>
+<div class="firma-row">
+  <div class="firma-box">Realizó el inventario</div>
+  <div class="firma-box">Supervisó</div>
+  <div class="firma-box">Capturado en sistema / Fecha</div>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=1050,height=720');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+function abrirDevolucion(folioKey) {
+  const items = _prestActivosData.filter(p => (p.Folio || p.ID_Prestamo) === folioKey);
+  if (!items.length) return showToast('No se encontraron herramientas activas para este folio', 'warning');
+
+  document.getElementById('devFolio').value       = folioKey;
+  document.getElementById('devResponsable').value = items[0].Nombre_Responsable || '—';
+  document.getElementById('devProyecto').value    = items[0].Proyecto || '—';
+
+  flatpickr('#devFecha', {locale:'es', defaultDate:'today', dateFormat:'Y-m-d'});
+
+  const selectAll = document.getElementById('devSelectAll');
+  selectAll.checked = true;
+
+  const tbody = document.getElementById('devTbody');
+  tbody.innerHTML = items.map(p => `
+    <tr>
+      <td class="text-center"><input type="checkbox" class="dev-chk" value="${p.ID_Prestamo}" checked></td>
+      <td><code class="small">${p.ID_Prestamo}</code></td>
+      <td>${p.Herramienta}</td>
+      <td class="text-muted small">${p.Condicion_salida || '—'}</td>
+    </tr>
+  `).join('');
+
+  new bootstrap.Modal(document.getElementById('modalDevolucion')).show();
+}
+
+function toggleAllDev(cb) {
+  document.querySelectorAll('.dev-chk').forEach(c => c.checked = cb.checked);
+}
+
+async function ejecutarDevolucion() {
+  const fecha   = document.getElementById('devFecha').value;
+  if (!fecha) return showToast('Selecciona la fecha de devolución', 'warning');
+  const checked = [...document.querySelectorAll('.dev-chk:checked')].map(c => c.value);
+  if (!checked.length) return showToast('Selecciona al menos una herramienta a devolver', 'warning');
+
+  let ok = 0, err = 0;
+  for (const id of checked) {
+    try {
+      const res = await fetch(`/api/prestamos/${id}/devolucion`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({fecha})
+      });
+      if (res.ok) ok++; else err++;
+    } catch { err++; }
+  }
+
+  bootstrap.Modal.getInstance(document.getElementById('modalDevolucion')).hide();
+  const total = ok + err;
+  const msg   = `${ok} de ${total} herramienta(s) devuelta(s)${err ? ` · ${err} error(es)` : ''}`;
+  showToast(msg, ok ? 'success' : 'danger');
+  cargarDatos(); // recarga herramientas + catálogo + préstamos + historial
+}
+
+async function abrirModalHerramienta() {
+  const idEl = document.getElementById('hID');
+  idEl.value = '…';
+  fetchNextCode('HER').then(code => { idEl.value = code; });
+  // Limpiar resto de campos
+  ['hNombre','hMarca','hModelo','hNS','hObs'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  flatpickr('#hFecha', {locale:'es', defaultDate:'today', dateFormat:'Y-m-d'});
+  new bootstrap.Modal(document.getElementById('modalHerramienta')).show();
+}
+
+async function guardarHerramienta() {
+  const payload = {
+    ID_Herramienta: document.getElementById('hID').value,
+    Herramienta: document.getElementById('hNombre').value,
+    Marca: document.getElementById('hMarca').value,
+    Modelo: document.getElementById('hModelo').value,
+    Tipo: document.getElementById('hTipo').value,
+    NS: document.getElementById('hNS').value,
+    Categoria: document.getElementById('hCat').value,
+    'Ubicación_Base': 'Taller Principal',
+    Estado: 'Disponible',
+    Responsable_Actual: '',
+    Fecha_Alta: document.getElementById('hFecha').value,
+    Observaciones: document.getElementById('hObs').value,
+  };
+  if (!payload.ID_Herramienta || !payload.Herramienta) return showToast('Completa los campos obligatorios','danger');
+  await fetch('/api/herramientas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  bootstrap.Modal.getInstance(document.getElementById('modalHerramienta')).hide();
+  showToast('Herramienta agregada','success');
+  cargarDatos();
+}
+
+cargarDatos();
+</script>

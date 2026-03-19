@@ -1,0 +1,149 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     GESTIÓN DE TALLERES  (solo yekflow)
+     ══════════════════════════════════════════════════════════════════════════ -->
+{% if current_user and current_user.nivel == 'yekflow' %}
+<div class="card border-warning mb-4" id="talleres">
+  <div class="card-header bg-warning bg-opacity-10 d-flex align-items-center gap-2">
+    <i class="bi bi-shop-window text-warning fs-5"></i>
+    <span class="fw-semibold">Gestión de Talleres</span>
+    <button class="btn btn-sm btn-warning ms-auto" onclick="abrirModalTaller()">
+      <i class="bi bi-plus-lg me-1"></i>Nuevo Taller
+    </button>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive" style="max-height:280px;overflow-y:auto;">
+      <table class="table table-hover table-sm mb-0">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Estado</th>
+            <th>Creado</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="bodyTalleres">
+          <tr><td colspan="5" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal nuevo/editar taller -->
+<div class="modal fade" id="modalTaller" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTallerTitulo"><i class="bi bi-shop-window me-2"></i>Nuevo Taller</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="tallerEditId">
+        <div class="mb-3" id="grupoTallerId">
+          <label class="form-label fw-semibold">ID (slug, sin espacios)</label>
+          <input type="text" class="form-control" id="tallerId" placeholder="ej. taller_norte">
+          <div class="form-text">Solo letras minúsculas, números y guiones bajos. No se puede cambiar después.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Nombre del Taller</label>
+          <input type="text" class="form-control" id="tallerNombre" placeholder="ej. Taller Norte">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-warning" onclick="guardarTaller()">
+          <i class="bi bi-check-lg me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function cargarTalleres() {
+  const tbody = document.getElementById('bodyTalleres');
+  try {
+    const r = await fetch('/api/talleres');
+    const rows = await r.json();
+    tbody.innerHTML = rows.map(t => `
+      <tr>
+        <td><code>${t.id}</code></td>
+        <td>${t.nombre}</td>
+        <td>${t.activo==1 ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>'}</td>
+        <td><small class="text-muted">${(t.creado_en||'').substring(0,10)}</small></td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-outline-primary py-0 px-1 me-1" onclick='editarTaller(${JSON.stringify(t)})' title="Editar"><i class="bi bi-pencil"></i></button>
+          ${t.id !== 'rober_lang' ? `<button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="toggleTaller('${t.id}',${t.activo})" title="${t.activo==1?'Desactivar':'Activar'}"><i class="bi bi-${t.activo==1?'pause':'play'}-circle"></i></button>` : ''}
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" class="text-center text-muted py-3">Sin talleres</td></tr>';
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error al cargar</td></tr>';
+  }
+}
+
+function abrirModalTaller() {
+  document.getElementById('tallerEditId').value = '';
+  document.getElementById('tallerId').value = '';
+  document.getElementById('tallerNombre').value = '';
+  document.getElementById('grupoTallerId').style.display = '';
+  document.getElementById('modalTallerTitulo').innerHTML = '<i class="bi bi-shop-window me-2"></i>Nuevo Taller';
+  new bootstrap.Modal(document.getElementById('modalTaller')).show();
+}
+
+function editarTaller(t) {
+  document.getElementById('tallerEditId').value = t.id;
+  document.getElementById('tallerId').value = t.id;
+  document.getElementById('tallerNombre').value = t.nombre;
+  document.getElementById('grupoTallerId').style.display = 'none';
+  document.getElementById('modalTallerTitulo').innerHTML = '<i class="bi bi-pencil me-2"></i>Editar Taller';
+  new bootstrap.Modal(document.getElementById('modalTaller')).show();
+}
+
+async function guardarTaller() {
+  const editId = document.getElementById('tallerEditId').value.trim();
+  const nombre = document.getElementById('tallerNombre').value.trim();
+  if (!nombre) { showToast('El nombre es requerido', 'danger'); return; }
+
+  let r;
+  if (editId) {
+    r = await fetch(`/api/talleres/${encodeURIComponent(editId)}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({nombre}),
+    });
+  } else {
+    const id = document.getElementById('tallerId').value.trim().toLowerCase().replace(/\s+/g,'_');
+    if (!id) { showToast('El ID es requerido', 'danger'); return; }
+    r = await fetch('/api/talleres', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({id, nombre}),
+    });
+  }
+  const d = await r.json();
+  if (d.ok) {
+    bootstrap.Modal.getInstance(document.getElementById('modalTaller'))?.hide();
+    showToast('Taller guardado', 'success');
+    cargarTalleres();
+  } else {
+    showToast(d.error || 'Error al guardar', 'danger');
+  }
+}
+
+async function toggleTaller(id, activo) {
+  const nuevoActivo = activo == 1 ? 0 : 1;
+  const r = await fetch(`/api/talleres/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({activo: nuevoActivo}),
+  });
+  const d = await r.json();
+  if (d.ok) { showToast('Taller actualizado', 'success'); cargarTalleres(); }
+  else showToast(d.error || 'Error', 'danger');
+}
+
+cargarTalleres();
+</script>
+{% endif %}

@@ -1,0 +1,433 @@
+/* ── Variables — paleta YekFlow ── */
+:root {
+  --sidebar-w: 240px;
+  --topbar-h: 58px;
+  --primary: #0A1A2F;        /* obsidiana */
+  --primary-light: #1BA6A6;  /* turquesa */
+  --accent: #1BA6A6;         /* turquesa */
+  --accent-dark: #158585;
+  --arena: #D9C7A3;
+  --bg: #f5f6f8;
+  --card-bg: #ffffff;
+  --text: #4A4A4A;           /* basalto */
+  --text-muted: #7a8290;
+  --border: #e2e6ea;
+  --sidebar-text: #c8d6e5;
+  --sidebar-active: #ffffff;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Reset / Base ── */
+* { box-sizing: border-box; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13.5px;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  overflow-x: hidden;
+}
+h1, h2, h3, h4, h5, h6,
+.topbar h5, .card-header, .kpi-value, .modal-title {
+  font-family: 'Montserrat', 'Inter', sans-serif;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  height: 100vh;
+  position: fixed;
+  top: 0; left: 0;
+  background: var(--primary);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  transition: width 0.25s ease;
+  overflow: hidden;
+}
+
+.sidebar.collapsed { width: 64px; }
+.sidebar.collapsed .sidebar-brand span,
+.sidebar.collapsed .nav-item span,
+.sidebar.collapsed .sidebar-footer { display: none; }
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px;
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  white-space: nowrap;
+}
+.sidebar-brand i { font-size: 22px; flex-shrink: 0; }
+
+.sidebar-nav {
+  flex: 1;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 20px;
+  color: var(--sidebar-text);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+  font-size: 13.5px;
+}
+.nav-item i { font-size: 17px; flex-shrink: 0; }
+.nav-item:hover { background: rgba(255,255,255,0.1); color: white; }
+.nav-item.active { background: rgba(255,255,255,0.18); color: var(--sidebar-active); font-weight: 600;
+  border-left: 3px solid var(--accent); }
+
+.sidebar-footer {
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  color: var(--sidebar-text);
+  font-size: 11px;
+}
+/* Forzar color claro en footer del sidebar (Bootstrap text-muted lo sobreescribe) */
+.sidebar-footer .text-muted,
+.sidebar-footer .small,
+.sidebar-footer small {
+  color: var(--sidebar-text) !important;
+  opacity: 0.85;
+}
+.sidebar-footer a.btn-outline-secondary {
+  color: var(--sidebar-text);
+  border-color: rgba(255,255,255,0.25);
+}
+.sidebar-footer a.btn-outline-secondary:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+/* ── Main content ── */
+.main-content {
+  margin-left: var(--sidebar-w);
+  transition: margin-left 0.25s ease;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.main-content.expanded { margin-left: 64px; }
+
+/* ── Topbar ── */
+.topbar {
+  height: var(--topbar-h);
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 22px;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.topbar h5 { color: var(--primary); font-weight: 700; }
+.sidebar-toggle { color: var(--text-muted); border: none; padding: 0; }
+.sidebar-toggle:hover { color: var(--accent); }
+
+/* ── Page content ── */
+.page-content {
+  flex: 1;
+  padding: 22px 24px;
+}
+
+/* ── Cards ── */
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(10,26,47,0.08);
+  background: var(--card-bg);
+  transition: box-shadow var(--transition);
+}
+.card:hover { box-shadow: 0 4px 20px rgba(10,26,47,0.1); }
+.card-header {
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text);
+  border-radius: 12px 12px 0 0 !important;
+}
+
+/* ── KPI Cards ── */
+.kpi-card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  border-left: 4px solid;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(10,26,47,0.08);
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+.kpi-card:hover { box-shadow: 0 4px 16px rgba(10,26,47,0.12); transform: translateY(-1px); }
+.kpi-icon { font-size: 30px; opacity: 0.75; }
+.kpi-value { font-size: 28px; font-weight: 700; line-height: 1.1; }
+.kpi-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.kpi-danger  { border-color: #dc3545; } .kpi-danger  .kpi-icon { color: #dc3545; }
+.kpi-warning { border-color: #ffc107; } .kpi-warning .kpi-icon { color: #e0a800; }
+.kpi-primary { border-color: #0d6efd; } .kpi-primary .kpi-icon { color: #0d6efd; }
+.kpi-success { border-color: #198754; } .kpi-success .kpi-icon { color: #198754; }
+
+/* ── Tables ── */
+.table { font-size: 13px; }
+.table thead th {
+  background: #f8f9fa;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+.table tbody tr:hover { background: rgba(27,166,166,0.05); }
+[data-bs-theme="dark"] .table tbody tr:hover { background: #1c2d3c; }
+.table td { vertical-align: middle; }
+code { background: #eef2f7; padding: 2px 5px; border-radius: 3px; font-size: 12px; color: #0A1A2F; }
+
+/* ── Badges override ── */
+.badge { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
+
+/* ── DataTables ── */
+.dataTables_wrapper .dataTables_filter input,
+.dataTables_wrapper .dataTables_length select {
+  font-size: 12.5px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+}
+.dataTables_wrapper .dataTables_length select {
+  min-width: 62px;
+  padding-right: 24px;
+  appearance: auto;
+  -webkit-appearance: auto;
+  background-color: var(--card-bg);
+  color: var(--text);
+}
+.dataTables_wrapper .dataTables_info { font-size: 12px; color: var(--text-muted); }
+
+/* ── Nav tabs ── */
+.nav-tabs .nav-link { font-size: 13px; color: var(--text-muted); }
+.nav-tabs .nav-link.active { font-weight: 600; color: var(--primary); }
+
+/* ── Modal ── */
+.modal-header { background: var(--primary); color: white; border-radius: 7px 7px 0 0; }
+.modal-header .btn-close { filter: invert(1) brightness(2); }
+.modal-title { font-size: 15px; }
+.form-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+.form-control, .form-select { font-size: 13px; border-radius: 5px; }
+.form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(27,166,166,0.18); }
+
+/* ── Scrollbar (webkit) ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #c0c8d0; border-radius: 3px; }
+
+/* ── Toast ── */
+.toast { font-size: 13px; }
+
+/* ── Autocomplete ── */
+.ac-wrapper { position: relative; }
+.ac-dropdown {
+  position: absolute; z-index: 1060; left: 0; right: 0;
+  max-height: 210px; overflow-y: auto;
+  background: var(--card-bg);
+  border: 1px solid var(--primary-light);
+  border-top: none;
+  border-radius: 0 0 5px 5px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.14);
+  display: none;
+}
+.ac-dropdown.show { display: block; }
+.ac-item {
+  padding: 7px 12px; cursor: pointer; font-size: 12.5px;
+  border-bottom: 1px solid var(--border); transition: background 0.08s;
+}
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover, .ac-item.focused { background: rgba(27,166,166,0.1); color: var(--primary); }
+.ac-item mark { background: transparent; color: var(--accent); font-weight: 700; padding: 0; }
+.ac-empty { padding: 8px 12px; color: var(--text-muted); font-size: 12.5px; font-style: italic; }
+
+/* ── Dark mode ──
+   Estrategia: sobreescribir las variables --bs-* de Bootstrap 5.3 para que
+   TODOS los componentes gestionados por Bootstrap hereden nuestros colores
+   automáticamente. Solo añadimos reglas explícitas para componentes custom
+   que Bootstrap NO gestiona (sidebar, topbar, kpi-card, autocomplete, DataTables).
+*/
+[data-bs-theme="dark"] {
+  /* Variables propias (para componentes custom) */
+  --bg:           #121416;
+  --card-bg:      #1e2329;
+  --text:         #ccd3db;
+  --text-muted:   #8b949e;
+  --border:       #30363d;
+  --primary-light:#388bdd;
+
+  /* Variables de Bootstrap — se propagan a forms, modals, cards, tables, etc. */
+  --bs-body-bg:              #121416;
+  --bs-body-color:           #ccd3db;
+  --bs-secondary-color:      #8b949e;
+  --bs-border-color:         #30363d;
+  --bs-border-color-translucent: rgba(255,255,255,.1);
+  --bs-card-bg:              #1e2329;
+  --bs-card-border-color:    #30363d;
+  --bs-card-cap-bg:          #1e2329;
+  --bs-modal-bg:             #1e2329;
+  --bs-modal-header-border-color: #30363d;
+  --bs-modal-footer-border-color: #30363d;
+  --bs-input-bg:             #161b22;
+  --bs-input-border-color:   #30363d;
+  --bs-input-color:          #ccd3db;
+  --bs-input-focus-bg:       #1e2329;
+  --bs-input-focus-border-color: #388bdd;
+  --bs-input-placeholder-color: #556270;
+  --bs-list-group-bg:        #1e2329;
+  --bs-list-group-border-color: #30363d;
+  --bs-list-group-color:     #ccd3db;
+  --bs-pagination-bg:        #1e2329;
+  --bs-pagination-border-color: #30363d;
+  --bs-pagination-color:     #ccd3db;
+  --bs-table-bg:             transparent;
+  --bs-table-color:          #ccd3db;
+  --bs-table-border-color:   #30363d;
+  --bs-table-striped-bg:     rgba(255,255,255,.03);
+  --bs-table-hover-bg:       #1c2d3c;
+}
+
+/* ── Componentes custom que Bootstrap no gestiona ── */
+[data-bs-theme="dark"] body        { background: var(--bg); }
+[data-bs-theme="dark"] .sidebar    { background: #0d1117; }
+[data-bs-theme="dark"] .topbar     { background: var(--card-bg); border-color: var(--border); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+[data-bs-theme="dark"] .topbar h5  { color: #79b8ff; }
+[data-bs-theme="dark"] .sidebar-toggle { color: var(--text-muted); }
+[data-bs-theme="dark"] .kpi-card   { background: var(--card-bg); }
+[data-bs-theme="dark"] code        { background: #161b22; color: #79b8ff; }
+
+/* Nav-tabs: Bootstrap gestiona colores pero sobreescribimos borde activo */
+[data-bs-theme="dark"] .nav-tabs { border-color: var(--border); }
+[data-bs-theme="dark"] .nav-tabs .nav-link { color: var(--text-muted); }
+[data-bs-theme="dark"] .nav-tabs .nav-link.active {
+  color: #79b8ff; background: var(--card-bg);
+  border-color: var(--border) var(--border) var(--card-bg);
+}
+
+/* Card-header: Bootstrap gestiona fondo pero no nuestros bordes custom */
+[data-bs-theme="dark"] .card        { border-color: var(--border); }
+[data-bs-theme="dark"] .card-header { border-color: var(--border); }
+
+/* Thead: Bootstrap no sobreescribe nuestro fondo custom en thead */
+[data-bs-theme="dark"] .table thead th { background: #161b22; }
+
+/* badge bg-light no tiene variante oscura automática */
+[data-bs-theme="dark"] .badge.bg-light { background: #2d333b !important; color: var(--text) !important; }
+
+/* bg-warning con opacidad: ajustar para modo oscuro */
+[data-bs-theme="dark"] .bg-warning.bg-opacity-10 { background-color: rgba(255,193,7,.06) !important; }
+
+/* Autocomplete — componente custom */
+[data-bs-theme="dark"] .ac-dropdown      { background: var(--card-bg); border-color: var(--primary-light); }
+[data-bs-theme="dark"] .ac-item          { border-color: var(--border); color: var(--text); }
+[data-bs-theme="dark"] .ac-item:hover,
+[data-bs-theme="dark"] .ac-item.focused  { background: #1c3a5e; color: #79b8ff; }
+[data-bs-theme="dark"] .ac-item mark     { color: #79b8ff; }
+
+/* DataTables — plugin jQuery, no responde a data-bs-theme */
+[data-bs-theme="dark"] .dataTables_wrapper { color: var(--text); }
+[data-bs-theme="dark"] .dataTables_wrapper .dataTables_filter input,
+[data-bs-theme="dark"] .dataTables_wrapper .dataTables_length select {
+  background: #161b22; color: var(--text); border-color: var(--border);
+}
+
+/* Scrollbars */
+[data-bs-theme="dark"] ::-webkit-scrollbar-track { background: #161b22; }
+[data-bs-theme="dark"] ::-webkit-scrollbar-thumb { background: #3d454f; }
+
+/* ── Responsive: mobile (offcanvas replaces fixed sidebar) ── */
+@media (max-width: 767.98px) {
+  .main-content {
+    margin-left: 0 !important;
+  }
+  .page-content {
+    padding: 14px 12px;
+  }
+  .topbar h5 {
+    font-size: 15px;
+  }
+
+  /* KPI: cuadrícula 2×2 */
+  .row.g-3.mb-4 > [class*="col-"] {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+  .kpi-card {
+    aspect-ratio: 1 / 1;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+    padding: 10px;
+  }
+  .kpi-card .kpi-body { text-align: center; }
+  .kpi-value { font-size: 22px; }
+  .kpi-icon  { font-size: 24px; }
+  .kpi-label { font-size: 11px; }
+
+  /* Tablas: scroll horizontal + texto compacto */
+  .table-responsive, .dataTables_wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table { font-size: 12px; white-space: nowrap; }
+  .table thead th { font-size: 10.5px; padding: 6px 8px; }
+  .table td { padding: 6px 8px; }
+
+  /* Botones: más compactos en móvil */
+  .btn-sm { font-size: 11.5px; padding: 4px 8px; }
+  .btn { font-size: 12.5px; }
+  .card-header { font-size: 12.5px; padding: 10px 12px; }
+  .card-header .d-flex.gap-2 { gap: 4px !important; }
+  .card-header .btn-sm { padding: 2px 6px; font-size: 11px; }
+
+  /* DataTables controles compactos */
+  .dataTables_wrapper .dataTables_filter,
+  .dataTables_wrapper .dataTables_length {
+    font-size: 12px;
+  }
+  .dataTables_wrapper .dataTables_paginate .paginate_button {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* Nav tabs compactos */
+  .nav-tabs .nav-link { font-size: 12px; padding: 6px 10px; }
+
+  /* Modal más ancho en móvil */
+  .modal-dialog { margin: 8px; }
+}
+@media (max-width: 575.98px) {
+  .topbar {
+    padding: 0 10px;
+    gap: 6px;
+  }
+}
+
+/* Offcanvas mobile sidebar (dark mode) */
+[data-bs-theme="dark"] .offcanvas {
+  background: #0d1117 !important;
+}

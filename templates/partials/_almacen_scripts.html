@@ -1,0 +1,1246 @@
+<script>
+let materiales = [], proyectos = [], empleados = [], ubicaciones = [];
+let matModoEdit = false;   // false = agregar, true = editar
+let matCodigoEdit = '';    // código del material que se edita
+
+async function cargarDatos() {
+  const safe = url => fetch(url).then(r=>r.json()).catch(()=>[]);
+  [materiales, proyectos, empleados, ubicaciones] = await Promise.all([
+    safe('/api/materiales'),
+    safe('/api/proyectos'),
+    safe('/api/empleados'),
+    safe('/api/ubicaciones'),
+  ]);
+  cargarStock();
+  cargarMovimientos();
+  cargarCatalogo();
+}
+
+function nombreMat(codigo) {
+  const m = materiales.find(x=>x.Codigo_mat===codigo);
+  return m ? m['Descripción'] : codigo;
+}
+function nombreProy(id) {
+  const p = proyectos.find(x=>x.ID_Proyecto===id);
+  return p ? p.Nombre_Obra : (id || '—');
+}
+function nombreEmp(id) {
+  const e = empleados.find(x=>x.EmpleadoID===id);
+  return e ? `${e.Nombre} ${e.Apellido}` : (id || '—');
+}
+
+let _stockData = [], _movData = [];
+
+function cargarStock() {
+  fetch('/api/stock').then(r=>r.json()).then(data => {
+    _stockData = data;
+    renderStock();
+  }).catch(e => {
+    document.querySelector('#tablaStock tbody').innerHTML =
+      `<tr><td colspan="6" class="text-center text-danger py-3">Error al cargar stock: ${e.message}</td></tr>`;
+  });
+}
+
+// Semáforo compartido: devuelve {rowClass, badge, dotClass} según nivel del backend
+function semaforo(s) {
+  const n = s.Nivel || (s.Alerta ? (s.Stock_actual <= 0 ? 'danger' : 'warning') : 'ok');
+  if (n === 'danger')  return { rowClass: 'table-danger',  badge: '<span class="badge bg-danger">Sin stock</span>',             dot: 'bg-danger'  };
+  if (n === 'warning') return { rowClass: 'table-warning', badge: '<span class="badge bg-warning text-dark">Bajo mínimo</span>', dot: 'bg-warning' };
+  return                      { rowClass: '',               badge: '<span class="badge bg-success">OK</span>',                   dot: 'bg-success' };
+}
+
+function renderStock() {
+  const tipo = document.getElementById('filtroTipoStock')?.value || '';
+  const buscar = (document.getElementById('buscarStock')?.value || '').toLowerCase().trim();
+  let data = _stockData;
+  if (tipo) {
+    data = data.filter(s => {
+      const mat = materiales.find(m => m.Codigo_mat === s.Codigo_mat);
+      return mat && mat.Tipo === tipo;
+    });
+  }
+  if (buscar) {
+    data = data.filter(s =>
+      (s.Codigo_mat || '').toLowerCase().includes(buscar) ||
+      (s.Descripcion || '').toLowerCase().includes(buscar)
+    );
+  }
+  destroyDT('#tablaStock');
+  const _colorNum = { 'bg-danger':'text-danger', 'bg-warning':'text-warning-emphasis', 'bg-success':'text-success' };
+  document.querySelector('#tablaStock tbody').innerHTML = data.map(s => {
+    const { badge, dot } = semaforo(s);
+    return `<tr>
+      <td><code>${s.Codigo_mat}</code></td>
+      <td>${s.Descripcion}</td>
+      <td>${s.Unidad}</td>
+      <td>${s.Stock_min}</td>
+      <td class="fw-semibold ${_colorNum[dot]}">
+        <span class="badge rounded-pill ${dot} me-1 p-1" style="font-size:8px;vertical-align:middle;" title="${badge.replace(/<[^>]+>/g,'')}">●</span>${s.Stock_actual}
+      </td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+  initDT('#tablaStock');
+}
+
+function cargarMovimientos() {
+  fetch('/api/movimientos').then(r=>r.json()).then(data => {
+    _movData = data;
+    renderMovimientos();
+  }).catch(()=>{});
+}
+
+function renderMovimientos() {
+  const tipo = document.getElementById('filtroTipoMov')?.value || '';
+  const data = tipo ? _movData.filter(m => m.Tipo === tipo) : _movData;
+  destroyDT('#tablaMovimientos');
+  document.querySelector('#tablaMovimientos tbody').innerHTML = data.map(m => {
+    const badge = m.Tipo==='Entrada'
+      ? '<span class="badge bg-success">Entrada</span>'
+      : m.Tipo==='Salida'
+        ? '<span class="badge bg-warning text-dark">Salida</span>'
+        : '<span class="badge bg-info text-dark">Traslado</span>';
+    const folioCell = m.Folio
+      ? `<code style="font-size:10px;">${m.Folio}</code>`
+      : '<span class="text-muted">—</span>';
+    const btnReprint = m.Folio
+      ? `<button class="btn btn-xs btn-outline-secondary" style="padding:2px 6px;font-size:11px;"
+           onclick="imprimirOrdenPorFolio('${m.Folio}')" title="Reimprimir orden">
+           <i class="bi bi-printer"></i></button>`
+      : '';
+    return `<tr>
+      <td>${m.Fecha}</td>
+      <td class="text-muted small">${m.Hora||'—'}</td>
+      <td>${folioCell}</td>
+      <td>${nombreMat(m.Codigo_mat)}</td>
+      <td>${badge}</td>
+      <td>${m.Cantidad} ${m.Unidad}</td>
+      <td>${nombreProy(m.ID_Proyecto)}</td>
+      <td>${m.Mueble||'—'}</td>
+      <td>${nombreEmp(m.ID_Trab)}</td>
+      <td>${btnReprint}</td>
+    </tr>`;
+  }).join('');
+  initDT('#tablaMovimientos');
+}
+
+function cargarCatalogo() {
+  const tipo = document.getElementById('filtroTipoCat')?.value || '';
+  const data = tipo ? materiales.filter(m => m.Tipo === tipo) : materiales;
+  destroyDT('#tablaMateriales');
+  document.querySelector('#tablaMateriales tbody').innerHTML = data.map(m => `<tr>
+    <td><code>${m.Codigo_mat}</code></td>
+    <td>${m.Tipo}</td>
+    <td>${m['Descripción']}</td>
+    <td>${m.Unidad}</td>
+    <td>${m.Stock_min}</td>
+    <td>
+      <button class="btn btn-xs btn-outline-primary" style="font-size:11px;padding:2px 8px;"
+        onclick="editarMaterial('${m.Codigo_mat}')">
+        <i class="bi bi-pencil"></i> Editar
+      </button>
+    </td>
+  </tr>`).join('');
+  initDT('#tablaMateriales');
+}
+
+
+// ── Autocomplete genérico ──
+// inputId: campo de texto visible | dropId: dropdown div | hiddenId: input hidden con el valor
+// items: array, labelFn: item→string, valueFn: item→string, onSelect: callback(val)
+function initAC(inputId, dropId, hiddenId, items, labelFn, valueFn, onSelect) {
+  const inp  = document.getElementById(inputId);
+  const drop = document.getElementById(dropId);
+  const hid  = document.getElementById(hiddenId);
+  if (!inp || !drop || !hid) return;
+  inp.value = ''; hid.value = '';
+  drop.innerHTML = ''; drop.classList.remove('show');
+  let focusIdx = -1;
+
+  function escapeRx(s) { return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+  function renderDrop(q) {
+    focusIdx = -1;
+    const filtered = q
+      ? items.filter(x => labelFn(x).toLowerCase().includes(q.toLowerCase())).slice(0, 60)
+      : items.slice(0, 60);
+    if (!filtered.length) {
+      drop.innerHTML = '<div class="ac-empty">Sin resultados</div>';
+    } else {
+      const rx = q ? new RegExp(`(${escapeRx(q)})`, 'gi') : null;
+      drop.innerHTML = filtered.map((x, i) => {
+        const lbl = labelFn(x);
+        const hi  = rx ? lbl.replace(rx, '<mark>$1</mark>') : lbl;
+        return `<div class="ac-item" data-i="${i}" data-val="${valueFn(x)}" data-lbl="${lbl.replace(/"/g,'&quot;')}">${hi}</div>`;
+      }).join('');
+    }
+    drop.classList.add('show');
+  }
+
+  function selectItem(val, lbl) {
+    inp.value = lbl; hid.value = val;
+    drop.classList.remove('show');
+    if (onSelect) onSelect(val);
+  }
+
+  inp.addEventListener('input',  () => renderDrop(inp.value.trim()));
+  inp.addEventListener('focus',  () => renderDrop(inp.value.trim()));
+  inp.addEventListener('keydown', e => {
+    const its = drop.querySelectorAll('.ac-item[data-val]');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault(); focusIdx = Math.min(focusIdx+1, its.length-1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault(); focusIdx = Math.max(focusIdx-1, 0);
+    } else if (e.key === 'Enter' && focusIdx >= 0) {
+      e.preventDefault();
+      const it = its[focusIdx];
+      if (it) selectItem(it.dataset.val, it.dataset.lbl);
+      return;
+    } else if (e.key === 'Escape') {
+      drop.classList.remove('show'); return;
+    } else { return; }
+    its.forEach((el,i) => el.classList.toggle('focused', i===focusIdx));
+    if (its[focusIdx]) its[focusIdx].scrollIntoView({block:'nearest'});
+  });
+  drop.addEventListener('mousedown', e => {
+    const it = e.target.closest('.ac-item[data-val]');
+    if (it) selectItem(it.dataset.val, it.dataset.lbl);
+  });
+  // Cerrar al hacer clic fuera
+  const outsideClick = e => {
+    if (!inp.contains(e.target) && !drop.contains(e.target)) drop.classList.remove('show');
+  };
+  document.addEventListener('mousedown', outsideClick);
+  // Limpiar listener cuando se cierre el modal para evitar acumulación
+  document.getElementById('modalMovimiento').addEventListener('hidden.bs.modal', () => {
+    document.removeEventListener('mousedown', outsideClick);
+  }, {once: true});
+}
+
+// ── Mostrar stock disponible cuando el tipo es Salida o Traslado ──
+function actualizarStockInfo() {
+  const cod  = document.getElementById('movMaterial').value;
+  const tipo = document.getElementById('movTipo').value;
+  const info = document.getElementById('movStockInfo');
+  const val  = document.getElementById('movStockVal');
+  const und  = document.getElementById('movStockUnd');
+  const alert = document.getElementById('movStockAlerta');
+  if ((tipo === 'Salida' || tipo === 'Traslado') && cod) {
+    const s = _stockData.find(x => x.Codigo_mat === cod);
+    if (s) {
+      info.classList.remove('d-none');
+      // Mostrar stock real disponible = stock_actual - lo que ya está en el carrito
+      const enCarrito = _movCarrito
+        .filter(x => x.Codigo_mat === cod)
+        .reduce((acc, x) => acc + parseFloat(x.Cantidad), 0);
+      const stockDisp = Math.max(0, parseFloat(s.Stock_actual) - enCarrito);
+      val.textContent = Number.isInteger(stockDisp) ? stockDisp : stockDisp.toFixed(2);
+      und.textContent = s.Unidad;
+      const { dot, badge } = semaforo(s);
+      val.className = `fw-bold ms-1 text-${dot === 'bg-danger' ? 'danger' : dot === 'bg-warning' ? 'warning-emphasis' : 'success'}`;
+      alert.innerHTML = s.Nivel !== 'ok' ? badge : '';
+    } else { info.classList.add('d-none'); }
+  } else { info.classList.add('d-none'); }
+}
+
+// ── Carrito de materiales (multi-ítem) ──────────────────────────────────────
+let _movCarrito = [];
+let _movMatObj  = null; // objeto material actualmente seleccionado
+
+function agregarAlCarrito() {
+  const mat = _movMatObj;
+  if (!mat) return showToast('Selecciona un material primero', 'warning');
+  const cantInput = document.getElementById('movCantidad');
+  const decimalU  = ['lt','lts','l','kg','g','m','m2','m3','ml','cm','mm'];
+  const unit      = (mat.Unidad || '').toLowerCase().trim();
+  const esDecimal = decimalU.includes(unit);
+  let cantidad    = parseFloat(cantInput.value);
+  if (!cantidad || cantidad <= 0) return showToast('Ingresa una cantidad válida', 'warning');
+  if (!esDecimal) cantidad = Math.round(cantidad);
+
+  // Validar stock disponible para Salida / Traslado
+  const tipoMov = document.getElementById('movTipo').value;
+  if (tipoMov === 'Salida' || tipoMov === 'Traslado') {
+    const stockItem = _stockData.find(x => x.Codigo_mat === mat.Codigo_mat);
+    const stockTotal = stockItem ? parseFloat(stockItem.Stock_actual) : 0;
+    const enCarrito  = _movCarrito
+      .filter(x => x.Codigo_mat === mat.Codigo_mat)
+      .reduce((s, x) => s + parseFloat(x.Cantidad), 0);
+    const stockDisp = stockTotal - enCarrito;
+    if (cantidad > stockDisp) {
+      return showToast(
+        `Stock insuficiente para <strong>${mat.Codigo_mat}</strong>. ` +
+        `Disponible: ${Math.max(0, stockDisp).toFixed(esDecimal ? 2 : 0)} ${mat.Unidad}`,
+        'danger'
+      );
+    }
+  }
+
+  _movCarrito.push({
+    Codigo_mat:  mat.Codigo_mat,
+    Descripcion: mat['Descripción'] || mat.Descripcion || mat.Codigo_mat,
+    Cantidad:    cantidad,
+    Unidad:      mat.Unidad || '',
+  });
+  renderCarrito();
+
+  // Limpiar selector de ítem para el siguiente
+  document.getElementById('movMatBuscar').value = '';
+  document.getElementById('movMaterial').value  = '';
+  document.getElementById('movUnidad').value    = '';
+  cantInput.value = '';
+  document.getElementById('movStockInfo').classList.add('d-none');
+  _movMatObj = null;
+  document.getElementById('movMatBuscar').focus();
+}
+
+function quitarDelCarrito(idx) {
+  _movCarrito.splice(idx, 1);
+  renderCarrito();
+  actualizarStockInfo(); // actualizar disponible si el mismo material sigue seleccionado
+}
+
+function renderCarrito() {
+  const vacio = document.getElementById('movCarritoVacio');
+  const tabla = document.getElementById('movCarritoTable');
+  const tbody = document.getElementById('movCarritoTbody');
+  const btn   = document.getElementById('btnGuardarMov');
+  if (_movCarrito.length === 0) {
+    vacio.style.display = '';
+    tabla.style.display = 'none';
+    btn.innerHTML = '<i class="bi bi-save me-1"></i>Registrar 0 materiales';
+    return;
+  }
+  vacio.style.display = 'none';
+  tabla.style.display = '';
+  tbody.innerHTML = _movCarrito.map((it, i) => `<tr>
+    <td class="text-muted text-center">${i+1}</td>
+    <td><code>${it.Codigo_mat}</code></td>
+    <td>${it.Descripcion}</td>
+    <td class="text-center fw-bold">${it.Cantidad}</td>
+    <td>${it.Unidad}</td>
+    <td class="text-center">
+      <button class="btn btn-xs btn-outline-danger" style="padding:1px 6px;font-size:11px;"
+        onclick="quitarDelCarrito(${i})" title="Quitar"><i class="bi bi-trash"></i></button>
+    </td>
+  </tr>`).join('');
+  const n = _movCarrito.length;
+  btn.innerHTML = `<i class="bi bi-save me-1"></i>Registrar ${n} material${n!==1?'es':''}`;
+}
+
+function generarFolio(prefijo) {
+  const n   = new Date();
+  const pad = v => String(v).padStart(2,'0');
+  const ts  = `${n.getFullYear()}${pad(n.getMonth()+1)}${pad(n.getDate())}-${pad(n.getHours())}${pad(n.getMinutes())}${pad(n.getSeconds())}`;
+  const rnd = String(Math.floor(Math.random()*100)).padStart(2,'0');
+  return `${prefijo}${ts}-${rnd}`;
+}
+
+function seleccionarTipoMovimiento() {
+  new bootstrap.Modal(document.getElementById('modalTipoMov')).show();
+}
+
+function elegirTipo(tipo) {
+  localStorage.setItem('movTipoUltimo', tipo);
+  const inst = bootstrap.Modal.getInstance(document.getElementById('modalTipoMov'));
+  if (inst) inst.hide();
+  // Esperar a que el modal se cierre antes de abrir el siguiente
+  setTimeout(() => abrirModalMovimiento(tipo), 150);
+}
+
+async function abrirModalMovimiento(tipo) {
+  // Refrescar stock antes de abrir el modal (evita validar con datos desactualizados)
+  try {
+    const r = await fetch('/api/stock');
+    _stockData = await r.json();
+  } catch (e) { /* usa el stock cacheado si falla */ }
+
+  // Reset carrito
+  _movCarrito = [];
+  _movMatObj  = null;
+  renderCarrito();
+
+  // Reset campos auxiliares
+  document.getElementById('movMueble').innerHTML = '<option value="">— Sin mueble —</option>';
+  document.getElementById('nuevoMuebleForm').classList.add('d-none');
+  document.getElementById('nuevoMuebleNombre').value = '';
+  document.getElementById('movTipo').value = '';
+  document.getElementById('movCantidad').value = '';
+  document.getElementById('movUnidad').value = '';
+  document.getElementById('movStockInfo').classList.add('d-none');
+  document.getElementById('movObs').value = '';
+
+  // Autocomplete: Material
+  initAC('movMatBuscar', 'movMatDrop', 'movMaterial',
+    materiales,
+    m => `${m.Codigo_mat} — ${m['Descripción']}`,
+    m => m.Codigo_mat,
+    cod => {
+      const mat = materiales.find(m => m.Codigo_mat === cod);
+      _movMatObj = mat || null;  // guardar objeto para agregarAlCarrito()
+      document.getElementById('movUnidad').value = mat ? mat.Unidad : '';
+      const unit = (mat ? mat.Unidad : '').toLowerCase().trim();
+      const decimal = ['lt','lts','l','kg','g','m','m2','m3','ml','cm','mm'];
+      const esDecimal = decimal.includes(unit);
+      const cantEl = document.getElementById('movCantidad');
+      cantEl.step = esDecimal ? '0.01' : '1';
+      cantEl.min  = esDecimal ? '0.01' : '1';
+      if (!esDecimal && cantEl.value && cantEl.value.includes('.')) {
+        cantEl.value = Math.round(parseFloat(cantEl.value));
+      }
+      actualizarStockInfo();
+      cantEl.focus();
+    }
+  );
+
+  // Autocomplete: Proyecto
+  const proyItems = [{ID_Proyecto:'', Nombre_Obra:'— Sin proyecto —'}, ...proyectos];
+  initAC('movProyBuscar', 'movProyDrop', 'movProyecto',
+    proyItems,
+    p => p.Nombre_Obra,
+    p => p.ID_Proyecto,
+    val => cargarMueblesModal(val)
+  );
+
+  // Autocomplete: Responsable
+  const respItems = [{EmpleadoID:'', _lbl:'— Sin responsable —'}, ...empleados.map(e=>({...e, _lbl:`${e.Nombre} ${e.Apellido}`}))];
+  initAC('movRespBuscar', 'movRespDrop', 'movResponsable',
+    respItems,
+    e => e._lbl || `${e.Nombre} ${e.Apellido}`,
+    e => e.EmpleadoID,
+    null
+  );
+
+  // Autocomplete: Ubicaciones (origen y destino)
+  const ubicItems = [{ID_Ubic:'', Descripción:'— Sin ubicación —'}, ...ubicaciones];
+  const ubicLabel = u => u.ID_Ubic ? `${u.ID_Ubic}${u.Descripción ? ' — ' + u.Descripción : ''}` : '— Sin ubicación —';
+  initAC('movOrigBuscar', 'movOrigDrop', 'movUbicOrigen', ubicItems, ubicLabel, u => u.ID_Ubic, null);
+  initAC('movDestBuscar', 'movDestDrop', 'movUbicDestino', ubicItems, ubicLabel, u => u.ID_Ubic, null);
+
+  // Tipo: actualizar stock info al cambiar
+  document.getElementById('movTipo').onchange = actualizarStockInfo;
+
+  flatpickr('#movFecha', {locale:'es', defaultDate:'today', dateFormat:'Y-m-d'});
+  const _modalMov = new bootstrap.Modal(document.getElementById('modalMovimiento'));
+  _modalMov.show();
+  // Preseleccionar tipo si se pasó como argumento
+  if (tipo) {
+    document.getElementById('movTipo').value = tipo;
+    document.getElementById('movTipo').dispatchEvent(new Event('change'));
+    // Actualizar título del modal
+    const iconos = {Entrada:'bi-box-arrow-in-down', Salida:'bi-box-arrow-up', Traslado:'bi-arrow-left-right'};
+    const titulos = {Entrada:'Entrada de Material', Salida:'Salida de Material', Traslado:'Traslado de Material'};
+    const titleEl = document.querySelector('#modalMovimiento .modal-title');
+    if (titleEl && titulos[tipo]) titleEl.innerHTML = `<i class="bi ${iconos[tipo]} me-2"></i>${titulos[tipo]}`;
+  }
+}
+
+function cargarMueblesModal(proyectoId) {
+  const sel = document.getElementById('movMueble');
+  sel.innerHTML = '<option value="">— Sin mueble —</option>';
+  if (!proyectoId) return Promise.resolve();
+  return fetch(`/api/muebles?proyecto=${proyectoId}`)
+    .then(r => r.json())
+    .then(data => {
+      data.forEach(mu => {
+        sel.insertAdjacentHTML('beforeend',
+          `<option value="${mu.ID_Mueble}">${mu.Mueble}</option>`);
+      });
+    })
+    .catch(() => {});
+}
+
+function toggleNuevoMueble() {
+  const form = document.getElementById('nuevoMuebleForm');
+  form.classList.toggle('d-none');
+  if (!form.classList.contains('d-none'))
+    document.getElementById('nuevoMuebleNombre').focus();
+}
+
+function cerrarNuevoMueble() {
+  document.getElementById('nuevoMuebleForm').classList.add('d-none');
+  document.getElementById('nuevoMuebleNombre').value = '';
+}
+
+async function crearMueble() {
+  const nombre = document.getElementById('nuevoMuebleNombre').value.trim();
+  const proyectoId = document.getElementById('movProyecto').value;
+  if (!nombre) return showToast('Ingresa el nombre del mueble', 'warning');
+  if (!proyectoId) return showToast('Selecciona primero un proyecto', 'warning');
+  const id = `MUE${Date.now()}`;
+  const resp = await fetch('/api/muebles', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ID_Mueble: id, ID_Proyecto: proyectoId, Mueble: nombre}),
+  });
+  if (!resp.ok) return showToast('Error al crear mueble', 'danger');
+  cerrarNuevoMueble();
+  showToast(`Mueble "${nombre}" creado`, 'success');
+  await cargarMueblesModal(proyectoId);
+  document.getElementById('movMueble').value = id;
+}
+
+async function guardarMovimiento() {
+  if (_movCarrito.length === 0) return showToast('Agrega al menos un material al listado', 'warning');
+  const tipo = document.getElementById('movTipo').value;
+  if (!tipo) return showToast('Selecciona el tipo de movimiento (Entrada/Salida/Traslado)', 'warning');
+
+  const selMueble  = document.getElementById('movMueble');
+  const muebleNombre = selMueble.selectedIndex > 0 ? selMueble.options[selMueble.selectedIndex].text : '';
+  const folio      = generarFolio('MOV');
+  const fecha      = document.getElementById('movFecha').value;
+  const proyId     = document.getElementById('movProyecto').value;
+  const respId     = document.getElementById('movResponsable').value;
+  const obs        = document.getElementById('movObs').value;
+  const ubicOrigen = document.getElementById('movUbicOrigen').value;
+  const ubicDest   = document.getElementById('movUbicDestino').value;
+
+  const batch = _movCarrito.map(item => ({
+    Fecha:          fecha,
+    Codigo_mat:     item.Codigo_mat,
+    Tipo:           tipo,
+    Cantidad:       item.Cantidad,
+    Unidad:         item.Unidad,
+    ID_Proyecto:    proyId,
+    Mueble:         muebleNombre,
+    ID_Trab:        respId,
+    ID_Ubic_Origen: ubicOrigen,
+    ID_Ubic_Destino:ubicDest,
+    Observaciones:  obs,
+    Folio:          folio,
+  }));
+
+  const resp   = await fetch('/api/movimientos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(batch)});
+  const result = await resp.json();
+  if (!resp.ok) return showToast(result.error || 'Error al guardar', 'danger');
+
+  bootstrap.Modal.getInstance(document.getElementById('modalMovimiento')).hide();
+  const n = _movCarrito.length;
+  showToast(`${n} movimiento${n!==1?'s':''} registrado${n!==1?'s':''}`, 'success');
+
+  // Imprimir la orden automáticamente
+  const meta = {
+    folio, tipo, fecha,
+    proyId,
+    proyNombre: document.getElementById('movProyBuscar').value || proyId || '—',
+    respId,
+    respNombre: document.getElementById('movRespBuscar').value || '—',
+    mueble:     muebleNombre || '—',
+    ubicOrigen: ubicOrigen || '—',
+    ubicDest:   ubicDest   || '—',
+    obs,
+  };
+  imprimirOrdenMovimiento(_movCarrito, meta);
+  cargarMovimientos();
+  cargarStock();
+}
+
+// ── Imprimir orden de material (2 copias) ──────────────────────────────────
+function imprimirOrdenMovimiento(items, meta) {
+  const now   = new Date();
+  const hora  = now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+  const tColor = meta.tipo === 'Entrada' ? '#198754' : meta.tipo === 'Salida' ? '#dc3545' : '#0dcaf0';
+
+  const filas = items.map((it, i) => `<tr>
+    <td style="text-align:center;color:#666">${i+1}</td>
+    <td><code>${it.Codigo_mat}</code></td>
+    <td>${it.Descripcion || it.Codigo_mat}</td>
+    <td style="text-align:center;font-weight:700">${it.Cantidad}</td>
+    <td>${it.Unidad}</td>
+  </tr>`).join('');
+
+  const bloque = (copia) => `<div class="orden">
+    <div class="logo-space"></div>
+    <div class="ord-header">
+      <div>
+        <div class="ord-title">ORDEN DE MATERIAL — ${(meta.tipo||'').toUpperCase()}</div>
+        <div class="ord-sub">By Barrón · Sistema de Taller &nbsp;·&nbsp; ${copia}</div>
+      </div>
+      <div class="ord-folio">
+        <div>Folio: <strong>${meta.folio}</strong></div>
+        <div>Fecha: <strong>${meta.fecha}</strong></div>
+        <div>Hora: <strong>${meta.hora||hora}</strong></div>
+      </div>
+    </div>
+    <table class="ord-data">
+      <tr><td class="lbl">Responsable</td><td>${meta.respNombre}</td>
+          <td class="lbl">Proyecto</td><td>${meta.proyNombre}</td></tr>
+      <tr><td class="lbl">Mueble</td><td>${meta.mueble}</td>
+          <td class="lbl">Origen → Destino</td><td>${meta.ubicOrigen||'—'} → ${meta.ubicDest||'—'}</td></tr>
+      ${meta.obs ? `<tr><td class="lbl">Observaciones</td><td colspan="3">${meta.obs}</td></tr>` : ''}
+    </table>
+    <table class="ord-items">
+      <thead><tr>
+        <th style="width:28pt">#</th>
+        <th style="width:70pt">Código</th>
+        <th>Material / Descripción</th>
+        <th style="width:55pt;text-align:center">Cantidad</th>
+        <th style="width:50pt">Unidad</th>
+      </tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div class="ord-firmas">
+      <div class="firma-box">Entregó<div class="firma-linea"></div><small>Almacén</small></div>
+      <div class="firma-box">Recibió<div class="firma-linea"></div><small>${meta.respNombre}</small></div>
+      <div class="firma-box">Observaciones<div class="firma-linea"></div><small>&nbsp;</small></div>
+    </div>
+    <div class="firma-barron">BY BARRÓN &nbsp;·&nbsp; SISTEMA DE GESTIÓN DE TALLER</div>
+  </div>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Orden ${meta.folio}</title>
+<style>
+  @page { size: A4 portrait; margin: 10mm 16mm 12mm 16mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:8.5pt; color:#000; }
+  .orden { padding:6pt 0; }
+  .logo-space { height:22mm; border-bottom:2px solid ${tColor}; margin-bottom:6pt; }
+  .ord-header { display:flex; justify-content:space-between; align-items:flex-start;
+    margin-bottom:6pt; }
+  .ord-title { font-size:11pt; font-weight:700; color:${tColor}; }
+  .ord-sub  { font-size:7.5pt; color:#555; margin-top:2pt; }
+  .ord-folio { text-align:right; font-size:8pt; line-height:1.9; }
+  .ord-data { width:100%; border-collapse:collapse; margin-bottom:6pt; }
+  .ord-data td { border:1px solid #bbb; padding:2.5pt 4pt; font-size:8pt; vertical-align:middle; }
+  .ord-data td.lbl { background:#f2f2f2; font-weight:600; width:75pt; white-space:nowrap; }
+  .ord-items { width:100%; border-collapse:collapse; margin-bottom:6pt; }
+  .ord-items thead tr th { background:#333; color:#fff; font-size:7pt; padding:2.5pt 4pt;
+    text-transform:uppercase; letter-spacing:.04em; font-weight:700; text-align:left; }
+  .ord-items tbody td { border:1px solid #ccc; padding:2.5pt 4pt; font-size:8pt; vertical-align:middle; }
+  .ord-firmas { display:flex; gap:16pt; margin-top:6pt; }
+  .firma-box { flex:1; text-align:center; font-size:7.5pt; color:#555; }
+  .firma-linea { border-top:1px solid #000; margin:16pt 0 3pt; }
+  .firma-barron { margin-top:5pt; padding-top:3pt; border-top:1px solid #ddd;
+    text-align:center; font-size:6.5pt; color:#bbb; letter-spacing:.06em; }
+  .corte { border-top:2px dashed #aaa; margin:8pt 0; text-align:center;
+    font-size:7pt; color:#999; letter-spacing:.06em; }
+</style></head><body>
+${bloque('COPIA — TRABAJADOR')}
+<div class="corte">✂ &nbsp; SEPARAR AQUÍ &nbsp; ✂</div>
+${bloque('COPIA — ALMACÉN')}
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=750,height=900');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+// ── Reimprimir orden por folio (desde tabla de movimientos) ─────────────────
+function imprimirOrdenPorFolio(folio) {
+  const rows = _movData.filter(m => m.Folio === folio);
+  if (!rows.length) return showToast('No se encontraron registros para este folio', 'warning');
+  const r0   = rows[0];
+  const meta = {
+    folio,
+    tipo:       r0.Tipo,
+    fecha:      r0.Fecha,
+    hora:       r0.Hora || '',
+    proyId:     r0.ID_Proyecto,
+    proyNombre: nombreProy(r0.ID_Proyecto),
+    respId:     r0.ID_Trab,
+    respNombre: nombreEmp(r0.ID_Trab),
+    mueble:     r0.Mueble || '—',
+    ubicOrigen: r0.ID_Ubic_Origen || '—',
+    ubicDest:   r0.ID_Ubic_Destino || '—',
+    obs:        r0.Observaciones || '',
+  };
+  const items = rows.map(m => ({
+    Codigo_mat:  m.Codigo_mat,
+    Descripcion: nombreMatDesc(m.Codigo_mat),
+    Cantidad:    m.Cantidad,
+    Unidad:      m.Unidad,
+  }));
+  imprimirOrdenMovimiento(items, meta);
+}
+
+function nombreMatDesc(cod) {
+  const m = materiales.find(x => x.Codigo_mat === cod);
+  return m ? (m['Descripción'] || m.Descripcion || cod) : cod;
+}
+
+// ── Helper: genera el siguiente código correlativo ──
+// ── Material: agregar ──
+async function abrirModalMaterial() {
+  matModoEdit = false;
+  matCodigoEdit = '';
+  document.getElementById('matModalTitle').innerHTML = '<i class="bi bi-plus-circle me-2"></i>Agregar Material';
+  const codigoEl = document.getElementById('matCodigo');
+  codigoEl.value = '…';
+  codigoEl.readOnly = true;
+  fetchNextCode('MAT').then(code => { codigoEl.value = code; });
+  document.getElementById('matTipo').value = 'Tablero';
+  document.getElementById('matDesc').value = '';
+  document.getElementById('matUnidad').value = '';
+  document.getElementById('matStockMin').value = '5';
+  new bootstrap.Modal(document.getElementById('modalMaterial')).show();
+}
+
+// ── Material: editar ──
+function editarMaterial(codigo) {
+  const m = materiales.find(x=>x.Codigo_mat===codigo);
+  if (!m) return;
+  matModoEdit = true;
+  matCodigoEdit = codigo;
+  document.getElementById('matModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>Editar Material';
+  document.getElementById('matCodigo').value = m.Codigo_mat;
+  document.getElementById('matCodigo').readOnly = true;
+  document.getElementById('matTipo').value = m.Tipo;
+  document.getElementById('matDesc').value = m['Descripción'];
+  document.getElementById('matUnidad').value = m.Unidad;
+  document.getElementById('matStockMin').value = m.Stock_min;
+  new bootstrap.Modal(document.getElementById('modalMaterial')).show();
+}
+
+async function guardarMaterial() {
+  const payload = {
+    Codigo_mat: document.getElementById('matCodigo').value,
+    Tipo: document.getElementById('matTipo').value,
+    'Descripción': document.getElementById('matDesc').value,
+    Unidad: document.getElementById('matUnidad').value,
+    Stock_min: document.getElementById('matStockMin').value,
+  };
+  if (!payload.Codigo_mat || !payload['Descripción']) {
+    return showToast('Completa los campos obligatorios', 'danger');
+  }
+
+  if (matModoEdit) {
+    await fetch(`/api/materiales/${matCodigoEdit}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    showToast('Material actualizado', 'success');
+  } else {
+    await fetch('/api/materiales', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    showToast('Material agregado al catálogo', 'success');
+  }
+
+  bootstrap.Modal.getInstance(document.getElementById('modalMaterial')).hide();
+  materiales = await fetch('/api/materiales').then(r=>r.json());
+  cargarCatalogo();
+  cargarStock();
+}
+
+// ── Ubicaciones ──
+let _ubicData = [], _ubicLoaded = false;
+let ubicModoEdit = false, ubicIDEdit = '';
+let _ubicVista = 'cards'; // 'cards' | 'tabla' | 'lista'
+
+function setVistaUbic(v) {
+  _ubicVista = v;
+  const btns = document.querySelectorAll('#btnVistaUbic button');
+  const vistas = ['cards','tabla','lista'];
+  btns.forEach((b,i) => b.classList.toggle('active', vistas[i] === v));
+  renderUbicaciones();
+}
+
+// Genera el ID a partir de los tres campos y actualiza el preview
+function actualizarIDUbic() {
+  const zona    = document.getElementById('ubicZona').value.trim().toUpperCase().replace(/\s+/g, '');
+  const estante = document.getElementById('ubicEstante').value.trim().toUpperCase().replace(/\s+/g, '');
+  const nivel   = document.getElementById('ubicNivel').value.trim();
+  const preview = document.getElementById('ubicIDPreview');
+  preview.value = (zona && estante && nivel) ? `${zona}-${estante}-N${nivel}` : '';
+}
+
+function cargarUbicaciones() {
+  document.getElementById('mapaUbicaciones').innerHTML =
+    '<div class="col-12 text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Cargando...</div>';
+  fetch('/api/stock_ubicaciones').then(r => r.json()).then(data => {
+    _ubicData = data;
+    renderUbicaciones();
+  }).catch(() => {
+    document.getElementById('mapaUbicaciones').innerHTML =
+      '<div class="col-12 text-center text-danger py-3"><i class="bi bi-exclamation-circle me-2"></i>Error al cargar ubicaciones</div>';
+  });
+}
+
+function renderUbicaciones() {
+  const mapa = document.getElementById('mapaUbicaciones');
+  if (!_ubicData.length) {
+    mapa.innerHTML = '<div class="col-12 text-center text-muted py-4">Sin ubicaciones registradas. Crea la primera con "+ Nueva ubicación".</div>';
+    return;
+  }
+
+  // ── Agrupar por zona (reutilizado por cards y lista) ──
+  const porZona = {};
+  _ubicData.forEach(u => {
+    const zona = u.Zona || 'Sin zona';
+    if (!porZona[zona]) porZona[zona] = [];
+    porZona[zona].push(u);
+  });
+  const zonasSinUbic = ['__SIN_UBIC__'];
+  const zonasOrden = Object.keys(porZona).filter(z => !zonasSinUbic.includes(z)).sort();
+  const zonasAll   = [...zonasOrden, ...zonasSinUbic.filter(z => porZona[z])];
+
+  // ── Helper: cabecera de zona ──
+  function zonaHeader(zona) {
+    const esSin = zona === '__SIN_UBIC__';
+    return `<div class="d-flex align-items-center mb-2 mt-2 gap-2">
+      <i class="bi bi-${esSin ? 'exclamation-triangle text-warning' : 'diagram-3 text-secondary'}"></i>
+      <span class="fw-semibold small text-uppercase ${esSin ? 'text-warning' : 'text-secondary'}">
+        ${esSin ? 'Stock sin ubicar' : 'Zona ' + zona}
+      </span>
+      <hr class="flex-grow-1 my-0 ${esSin ? 'border-warning opacity-50' : ''}">
+    </div>`;
+  }
+
+  // ════════════════════════════════
+  // VISTA: TABLA (todos los materiales en una tabla plana)
+  // ════════════════════════════════
+  if (_ubicVista === 'tabla') {
+    const rows = [];
+    _ubicData.forEach(u => {
+      u.items.forEach(i => rows.push({
+        Descripcion: i.Descripcion, Codigo_mat: i.Codigo_mat,
+        Cantidad: i.Cantidad, Unidad: i.Unidad,
+        UbicID: u.ID_Ubic, UbicDesc: u.Descripcion,
+        Zona: u.Zona === '__SIN_UBIC__' ? '—' : (u.Zona || '—'),
+        sinUbic: !!u.sin_ubic
+      }));
+    });
+    if (!rows.length) {
+      mapa.innerHTML = '<div class="col-12 text-center text-muted py-4">Sin materiales con stock registrado.</div>';
+      return;
+    }
+    rows.sort((a,b) => a.Descripcion.localeCompare(b.Descripcion));
+    mapa.innerHTML = `<div class="col-12"><div class="table-responsive">
+      <table class="table table-sm table-hover dt-table" id="tablaUbicMat">
+        <thead><tr>
+          <th>Material</th><th>Código</th>
+          <th class="text-end">Cantidad</th><th>Unidad</th>
+          <th>Ubicación</th><th>Zona</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr class="${r.sinUbic ? 'table-warning' : ''}">
+            <td>${r.Descripcion}</td>
+            <td><code>${r.Codigo_mat}</code></td>
+            <td class="text-end fw-semibold">${r.Cantidad}</td>
+            <td>${r.Unidad}</td>
+            <td>${r.sinUbic
+              ? '<span class="text-warning-emphasis fst-italic small"><i class="bi bi-exclamation-triangle me-1"></i>Sin ubicar</span>'
+              : `<code class="text-primary">${r.UbicID}</code>${r.UbicDesc ? `<span class="text-muted small ms-1">${r.UbicDesc}</span>` : ''}`
+            }</td>
+            <td>${r.Zona}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div></div>`;
+    initDT('#tablaUbicMat');
+    return;
+  }
+
+  // ════════════════════════════════
+  // VISTA: LISTA compacta
+  // ════════════════════════════════
+  if (_ubicVista === 'lista') {
+    mapa.innerHTML = zonasAll.map(zona => {
+      const lista     = porZona[zona] || [];
+      const esSinUbic = zona === '__SIN_UBIC__';
+      const rows = lista.map(u => {
+        const pills = u.items.length
+          ? u.items.map(i =>
+              `<span class="badge border me-1 mb-1" style="font-weight:500;background:rgba(0,0,0,.04);color:inherit;">
+                ${i.Descripcion}&nbsp;<strong>${i.Cantidad}&nbsp;${i.Unidad}</strong>
+              </span>`).join('')
+          : '<span class="text-muted small fst-italic">Vacío</span>';
+        return `<tr class="${esSinUbic ? 'table-warning' : ''}">
+          <td class="py-2 align-top" style="min-width:130px;white-space:nowrap;">
+            ${esSinUbic
+              ? '<i class="bi bi-exclamation-triangle text-warning me-1"></i><span class="text-warning-emphasis fst-italic small">Sin ubicar</span>'
+              : `<code class="text-primary">${u.ID_Ubic}</code>${u.Descripcion ? `<div class="text-muted" style="font-size:11px;">${u.Descripcion}</div>` : ''}`
+            }
+          </td>
+          <td class="py-2">${pills}</td>
+          <td class="py-2 text-end" style="width:44px;">
+            ${esSinUbic ? '' : `<button class="btn btn-outline-secondary btn-sm py-0 px-1" style="font-size:11px;"
+              onclick="editarUbicacion('${u.ID_Ubic}')" title="Editar"><i class="bi bi-pencil"></i></button>`}
+          </td>
+        </tr>`;
+      }).join('');
+      return `<div class="col-12">${zonaHeader(zona)}
+        <table class="table table-sm mb-2">
+          <colgroup><col style="width:160px;"><col><col style="width:44px;"></colgroup>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  // ════════════════════════════════
+  // VISTA: CARDS (por defecto)
+  // ════════════════════════════════
+  mapa.innerHTML = zonasAll.map(zona => {
+    const lista     = porZona[zona] || [];
+    const esSinUbic = zona === '__SIN_UBIC__';
+
+    const cards = lista.map(u => {
+      if (esSinUbic) {
+        return `<div class="col-12">
+          <div class="card border-warning border-opacity-75">
+            <div class="card-header py-2 bg-warning bg-opacity-10 d-flex justify-content-between align-items-start">
+              <div>
+                <i class="bi bi-exclamation-triangle text-warning me-1"></i>
+                <span class="fw-semibold text-warning-emphasis">Sin ubicación asignada</span>
+                <div class="small text-muted mt-1">Stock de movimientos sin ubicación de destino/origen.
+                  Usa un <strong>Traslado</strong> para asignarlos.</div>
+              </div>
+              <div class="d-flex align-items-center gap-1 ms-2 flex-shrink-0">
+                <button class="btn btn-sm btn-outline-warning py-0 px-1" onclick="imprimirSinUbicacion()" title="Imprimir materiales sin ubicación">
+                  <i class="bi bi-printer"></i>
+                </button>
+                <span class="badge bg-warning text-dark">${u.total_items} mat.</span>
+              </div>
+            </div>
+            <div class="card-body p-0"><div class="table-responsive">
+              <table class="table table-sm mb-0"><thead class="table-light">
+                <tr><th>Material</th><th class="text-end">Cant. sin ubicar</th></tr>
+              </thead><tbody>
+                ${u.items.map(i=>`<tr><td>${i.Descripcion}</td>
+                  <td class="text-end fw-bold text-warning-emphasis">${i.Cantidad} ${i.Unidad}</td></tr>`).join('')}
+              </tbody></table>
+            </div></div>
+          </div>
+        </div>`;
+      }
+
+      const border   = u.total_items > 0 ? 'border-primary border-opacity-50' : 'border-secondary border-opacity-25';
+      const estTag   = u.Estante || '';
+      const nivTag   = u.Nivel ? `N${u.Nivel}` : '';
+      const itemsHtml = u.items.length
+        ? `<ul class="list-group list-group-flush">
+            ${u.items.map(i=>`<li class="list-group-item px-3 py-1 d-flex justify-content-between align-items-center">
+              <span class="small text-truncate me-2" title="${i.Descripcion}">${i.Descripcion}</span>
+              <span class="badge bg-secondary rounded-pill">${i.Cantidad} ${i.Unidad}</span>
+            </li>`).join('')}
+          </ul>`
+        : '<p class="text-muted small px-3 py-2 mb-0 fst-italic">Sin stock registrado</p>';
+      return `<div class="col-sm-6 col-md-4 col-xl-3">
+        <div class="card h-100 ${border}">
+          <div class="card-header py-2 d-flex justify-content-between align-items-start">
+            <div>
+              <code class="text-primary fw-bold">${u.ID_Ubic}</code>
+              ${estTag ? `<span class="badge bg-light text-secondary ms-1 fw-normal">${estTag}</span>` : ''}
+              ${nivTag ? `<span class="badge bg-light text-secondary fw-normal">${nivTag}</span>` : ''}
+              <div class="small text-muted mt-1">${u.Descripcion || ''}</div>
+            </div>
+            <div class="d-flex align-items-center gap-1 ms-1 flex-shrink-0">
+              <span class="badge ${u.total_items > 0 ? 'bg-primary' : 'bg-light text-dark'}">${u.total_items}</span>
+              <button class="btn btn-outline-secondary btn-sm py-0 px-1" style="font-size:11px;"
+                onclick="editarUbicacion('${u.ID_Ubic}')" title="Editar"><i class="bi bi-pencil"></i></button>
+            </div>
+          </div>
+          ${itemsHtml}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="col-12">${zonaHeader(zona)}<div class="row g-3">${cards}</div></div>`;
+  }).join('');
+}
+
+function _limpiarCamposUbicacion(readonly) {
+  ['ubicZona', 'ubicEstante'].forEach(id => {
+    document.getElementById(id).value = '';
+    document.getElementById(id).readOnly = readonly;
+  });
+  document.getElementById('ubicNivel').value = '';
+  document.getElementById('ubicNivel').readOnly = readonly;
+  document.getElementById('ubicIDPreview').value = '';
+  document.getElementById('ubicDesc').value = '';
+}
+
+function abrirModalUbicacion() {
+  ubicModoEdit = false;
+  ubicIDEdit = '';
+  document.getElementById('ubicModalTitle').innerHTML = '<i class="bi bi-geo-alt me-2"></i>Nueva Ubicación';
+  document.getElementById('ubicIDEditNote').style.display = 'none';
+  _limpiarCamposUbicacion(false);
+  new bootstrap.Modal(document.getElementById('modalUbicacion')).show();
+}
+
+function editarUbicacion(id) {
+  const u = ubicaciones.find(x => x.ID_Ubic === id);
+  if (!u) return;
+  ubicModoEdit = true;
+  ubicIDEdit = id;
+  document.getElementById('ubicModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>Editar Ubicación';
+  document.getElementById('ubicIDEditNote').style.display = '';
+
+  // Poblar preview con el ID actual
+  document.getElementById('ubicIDPreview').value = u.ID_Ubic;
+
+  // Usar campos almacenados; si no existen, parsear el ID
+  const zona    = u.Zona    || '';
+  const estante = u.Estante || '';
+  const nivel   = u.Nivel   || '';
+
+  if (zona || estante || nivel) {
+    document.getElementById('ubicZona').value    = zona;
+    document.getElementById('ubicEstante').value = estante;
+    document.getElementById('ubicNivel').value   = nivel;
+  } else {
+    // Parseo de fallback: ZONA-ESTANTE-Nnivel
+    const parts = u.ID_Ubic.split('-');
+    if (parts.length >= 3) {
+      document.getElementById('ubicZona').value    = parts[0];
+      document.getElementById('ubicEstante').value = parts.slice(1, -1).join('-');
+      const last = parts[parts.length - 1];
+      document.getElementById('ubicNivel').value   = last.toUpperCase().startsWith('N') ? last.slice(1) : last;
+    } else {
+      document.getElementById('ubicZona').value    = '';
+      document.getElementById('ubicEstante').value = '';
+      document.getElementById('ubicNivel').value   = '';
+    }
+  }
+
+  // En edición el ID no cambia (protege historial de movimientos)
+  ['ubicZona', 'ubicEstante', 'ubicNivel'].forEach(id => {
+    document.getElementById(id).readOnly = true;
+  });
+  document.getElementById('ubicDesc').value = u['Descripción'] || '';
+  new bootstrap.Modal(document.getElementById('modalUbicacion')).show();
+}
+
+async function guardarUbicacion() {
+  const id = document.getElementById('ubicIDPreview').value.trim();
+  if (!id) return showToast('Completa zona, estante y nivel para generar el ID', 'danger');
+
+  const payload = {
+    ID_Ubic:       id,
+    'Descripción': document.getElementById('ubicDesc').value.trim(),
+    Zona:          document.getElementById('ubicZona').value.trim().toUpperCase(),
+    Estante:       document.getElementById('ubicEstante').value.trim().toUpperCase(),
+    Nivel:         document.getElementById('ubicNivel').value.trim(),
+  };
+
+  const resp = ubicModoEdit
+    ? await fetch(`/api/ubicaciones/${ubicIDEdit}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+      })
+    : await fetch('/api/ubicaciones', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+      });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    return showToast(err.error || 'Error al guardar ubicación', 'danger');
+  }
+  bootstrap.Modal.getInstance(document.getElementById('modalUbicacion')).hide();
+  showToast(ubicModoEdit ? 'Ubicación actualizada' : 'Ubicación creada', 'success');
+  ubicaciones = await fetch('/api/ubicaciones').then(r => r.json());
+  cargarUbicaciones();
+}
+
+// ── Imprimir hoja de conteo físico de inventario ──
+// ── Imprimir materiales sin ubicación ──────────────────────────────────────
+async function imprimirSinUbicacion() {
+  try {
+    const r = await fetch('/api/stock_ubicaciones');
+    const data = await r.json();
+    const sinUbic = data.find(z => z.sin_ubic === true);
+    if (!sinUbic || !sinUbic.items || !sinUbic.items.length) {
+      showToast('No hay materiales sin ubicación', 'info');
+      return;
+    }
+    const today = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+    const filas = sinUbic.items.map((i, idx) =>
+      `<tr><td style="text-align:center;">${idx+1}</td><td>${i.Codigo_mat || '—'}</td>
+       <td>${i.Descripcion}</td><td style="text-align:center;">${i.Unidad}</td>
+       <td style="text-align:right;font-weight:700;color:#856404;">${i.Cantidad}</td>
+       <td></td></tr>`
+    ).join('');
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+      <title>Materiales Sin Ubicación</title>
+      <style>
+        @page{size:letter landscape;margin:12mm 14mm;}
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:Arial,sans-serif;font-size:9pt;color:#000;}
+        .header{display:flex;justify-content:space-between;align-items:flex-end;
+          border-bottom:2.5px solid #000;padding-bottom:5pt;margin-bottom:10pt;}
+        h1{font-size:13pt;font-weight:700;}
+        .meta{text-align:right;font-size:8pt;line-height:1.8;}
+        .linea{display:inline-block;border-bottom:1px solid #000;min-width:90pt;margin-left:3pt;}
+        .instrucciones{font-size:7.5pt;color:#444;background:#fff3cd;border:1px solid #ffc107;
+          padding:4pt 8pt;margin-bottom:9pt;border-radius:2pt;}
+        table{width:100%;border-collapse:collapse;margin-bottom:6pt;}
+        th{font-size:7.5pt;font-weight:700;text-transform:uppercase;
+          background:#f0f0f0;border:1px solid #aaa;padding:3pt 4pt;white-space:nowrap;}
+        td{border:1px solid #bbb;padding:3pt 4pt;font-size:8.5pt;vertical-align:middle;}
+        .firma-row{display:flex;gap:30pt;margin-top:18pt;}
+        .firma-box{flex:1;border-top:1px solid #000;padding-top:3pt;font-size:7.5pt;text-align:center;color:#555;}
+        .total{font-size:9pt;font-weight:700;text-align:right;margin-top:4pt;}
+      </style></head><body>
+      <div class="header">
+        <div><h1>Materiales Sin Ubicación Asignada</h1>
+          <p style="font-size:8pt;color:#555;margin-top:2pt;">Reporte para asignación de ubicaciones mediante Traslado</p></div>
+        <div class="meta">
+          <div>Impreso: ${today}</div>
+          <div>Responsable: <span class="linea">&nbsp;</span></div>
+        </div>
+      </div>
+      <div class="instrucciones">Estos materiales tienen stock registrado pero no tienen ubicación en el almacén.
+        Para asignarles ubicación, registre un movimiento de <strong>Traslado</strong> especificando la ubicación destino.</div>
+      <table>
+        <thead><tr><th style="width:30pt">#</th><th style="width:65pt">Código</th>
+          <th>Descripción</th><th style="width:50pt">Unidad</th>
+          <th style="width:60pt">Cantidad</th><th style="width:120pt">Ubicación asignada</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="total">Total: ${sinUbic.items.length} materiales sin ubicación</div>
+      <div class="firma-row">
+        <div class="firma-box">Verificó</div>
+        <div class="firma-box">Asignó ubicaciones</div>
+        <div class="firma-box">Capturó en sistema</div>
+      </div>
+      </body></html>`;
+    const win = window.open('', '_blank', 'width=1050,height=750');
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 450);
+  } catch(e) { showToast('Error al generar reporte', 'danger'); }
+}
+
+async function imprimirInventario() {
+  if (!_stockData.length) return showToast('Carga el stock primero', 'warning');
+  const today = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+
+  // Construir mapa codMat → lista de ubicaciones con cantidad
+  let ubicMap = {};
+  try {
+    const ubicData = await fetch('/api/stock_ubicaciones').then(r => r.json());
+    ubicData.forEach(u => {
+      const zona = u.sin_ubic ? 'Sin ubicación' : [u.Zona, u.Estante, u.Nivel].filter(Boolean).join(' / ');
+      (u.items || []).forEach(it => {
+        if (!ubicMap[it.Codigo_mat]) ubicMap[it.Codigo_mat] = [];
+        ubicMap[it.Codigo_mat].push({ zona, cantidad: it.Cantidad });
+      });
+    });
+  } catch(e) { /* continuar sin ubicaciones */ }
+
+  // Agrupar por tipo usando el array materiales
+  const tipoMap = {};
+  materiales.forEach(m => { tipoMap[m.Codigo_mat] = m.Tipo || 'Sin tipo'; });
+
+  const grupos = {};
+  _stockData.forEach(s => {
+    const tipo = tipoMap[s.Codigo_mat] || 'Sin tipo';
+    if (!grupos[tipo]) grupos[tipo] = [];
+    grupos[tipo].push(s);
+  });
+
+  const nivelLabel = n => n === 'danger' ? 'SIN STOCK' : n === 'warning' ? 'BAJO MÍN.' : 'OK';
+  const nivelColor = n => n === 'danger' ? '#dc3545' : n === 'warning' ? '#fd7e14' : '#198754';
+
+  const sections = Object.entries(grupos).sort(([a],[b]) => a.localeCompare(b)).map(([tipo, items]) => {
+    const rows = items.map(s => {
+      const locs = ubicMap[s.Codigo_mat];
+      const locStr = locs ? locs.map(l => `${l.zona} (${l.cantidad})`).join(', ') : '—';
+      const color  = nivelColor(s.Nivel);
+      return `<tr>
+        <td>${s.Codigo_mat}</td>
+        <td>${s.Descripcion}</td>
+        <td class="text-center">${s.Unidad}</td>
+        <td class="text-center">${locStr}</td>
+        <td class="text-center fw-semibold" style="color:${color};">${s.Stock_actual}</td>
+        <td class="text-center">${s.Stock_min}</td>
+        <td class="campo text-center"></td>
+        <td class="campo text-center"></td>
+        <td class="campo-nota"></td>
+      </tr>`;
+    }).join('');
+    return `<h3>${tipo}</h3>
+    <table><thead><tr>
+      <th style="width:68px">Código</th>
+      <th>Descripción</th>
+      <th style="width:44px" class="text-center">Und</th>
+      <th style="width:160px" class="text-center">Ubicación (sistema)</th>
+      <th style="width:64px" class="text-center">Stock sis.</th>
+      <th style="width:50px" class="text-center">Mín.</th>
+      <th style="width:70px" class="text-center">Conteo físico</th>
+      <th style="width:70px" class="text-center">Diferencia</th>
+      <th>Observaciones</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  }).join('');
+
+  const totalMats  = _stockData.length;
+  const sinStock   = _stockData.filter(s => s.Nivel === 'danger').length;
+  const bajoMin    = _stockData.filter(s => s.Nivel === 'warning').length;
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Inventario Físico — ${today}</title>
+<style>
+  @page { size: letter landscape; margin: 10mm 14mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:8.5pt; color:#000; }
+  .doc-header { display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:2.5px solid #000; padding-bottom:5pt; margin-bottom:6pt; }
+  .doc-header h1 { font-size:13pt; margin-bottom:2pt; }
+  .doc-header p  { font-size:8pt; color:#444; }
+  .doc-meta { text-align:right; font-size:8pt; line-height:1.8; }
+  .linea { display:inline-block; border-bottom:1px solid #000; min-width:100pt; margin-left:3pt; }
+  .resumen { font-size:7.5pt; background:#f5f5f5; border:1px solid #ccc; padding:4pt 8pt;
+    margin-bottom:8pt; border-radius:2pt; display:flex; gap:20pt; align-items:center; }
+  .resumen strong { color:#1a1a1a; }
+  .alerta-r { color:#dc3545; } .alerta-w { color:#fd7e14; }
+  .instrucciones { font-size:7pt; color:#555; margin-bottom:8pt; font-style:italic; }
+  h3 { font-size:9pt; background:#2c2c2c; color:#fff; padding:2.5pt 7pt;
+    margin:8pt 0 2pt; border-radius:2pt; page-break-after:avoid; }
+  table { width:100%; border-collapse:collapse; margin-bottom:4pt; }
+  th { font-size:6.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    background:#f0f0f0; border:1px solid #aaa; padding:2pt 3pt; text-align:left; }
+  th.text-center { text-align:center; }
+  td { border:1px solid #ccc; height:16pt; vertical-align:middle; font-size:8pt; padding-left:3pt; }
+  td.text-center { text-align:center; padding-left:0; }
+  td.campo     { background:#fafafa; }
+  td.campo-nota { background:#fafafa; }
+  .firma-row { margin-top:14pt; display:flex; gap:30pt; }
+  .firma-box { flex:1; padding-top:3pt; border-top:1px solid #000;
+    font-size:7.5pt; text-align:center; color:#555; }
+</style></head><body>
+<div class="doc-header">
+  <div>
+    <h1>Conteo Físico de Inventario</h1>
+    <p>Sistema de Taller &nbsp;·&nbsp; ${totalMats} materiales en catálogo</p>
+  </div>
+  <div class="doc-meta">
+    <div>Impreso: ${today}</div>
+    <div>Fecha de conteo: <span class="linea">&nbsp;</span></div>
+    <div>Responsable: <span class="linea" style="min-width:90pt;">&nbsp;</span></div>
+  </div>
+</div>
+<div class="resumen">
+  <span><strong>Total materiales:</strong> ${totalMats}</span>
+  <span class="alerta-r"><strong>Sin stock:</strong> ${sinStock}</span>
+  <span class="alerta-w"><strong>Bajo mínimo:</strong> ${bajoMin}</span>
+  <span><strong>OK:</strong> ${totalMats - sinStock - bajoMin}</span>
+</div>
+<div class="instrucciones">
+  Instrucciones: Anota el conteo físico real de cada material. Calcula la diferencia (Conteo físico − Stock sistema). Anota observaciones si hay discrepancias, daños o materiales fuera de ubicación.
+</div>
+${sections}
+<div class="firma-row">
+  <div class="firma-box">Realizó el conteo</div>
+  <div class="firma-box">Supervisó</div>
+  <div class="firma-box">Ajustes capturados en sistema</div>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=1050,height=720');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+}
+
+cargarDatos();
+</script>

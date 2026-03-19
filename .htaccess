@@ -1,0 +1,62 @@
+# .htaccess — Configuración para Hostinger (Apache + Phusion Passenger)
+# Coloca este archivo en el directorio raíz de tu aplicación Python.
+
+# ── Passenger WSGI ────────────────────────────────────────────────────────────
+PassengerEnabled on
+PassengerAppType wsgi
+PassengerStartupFile passenger_wsgi.py
+
+# ── Archivos estáticos ────────────────────────────────────────────────────────
+# Servir static/ directamente sin pasar por Python
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Servir archivos estáticos directamente
+    RewriteCond %{REQUEST_URI} ^/static/
+    RewriteRule ^(.*)$ - [L]
+
+    # Todo lo demás pasa por Passenger
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(.*)$ /passenger_wsgi.py/$1 [QSA,L]
+</IfModule>
+
+# ── Seguridad: bloquear acceso directo a archivos sensibles ──────────────────
+<FilesMatch "\.(db|sqlite|py|json|txt|cfg|env)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Deny,Allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Excepción: passenger_wsgi.py debe ser accesible por Passenger (no por el navegador)
+<Files "passenger_wsgi.py">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</Files>
+
+# ── Headers de seguridad ──────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ── Compresión GZIP ───────────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json
+</IfModule>
+
+# ── Caché de estáticos ────────────────────────────────────────────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css              "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png             "access plus 1 month"
+    ExpiresByType image/jpeg            "access plus 1 month"
+    ExpiresByType image/svg+xml         "access plus 1 month"
+</IfModule>

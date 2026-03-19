@@ -1,0 +1,188 @@
+<div class="row g-3 mb-3">
+  <!-- Panel principal -->
+  <div class="col-md-8">
+    <div class="card h-100">
+      <div class="card-header">
+        <!-- Fila de filtros -->
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+          <i class="bi bi-funnel text-muted"></i>
+          <!-- Filtro Obra -->
+          <select class="form-select form-select-sm w-auto" id="filtroObra" onchange="onObraChange()">
+            <option value="">Todas las obras</option>
+          </select>
+          <!-- Filtro OP (cascada) -->
+          <select class="form-select form-select-sm w-auto" id="filtroOPAvance" onchange="filtrarAvance()">
+            <option value="">Todas las OPs</option>
+          </select>
+          <!-- Filtro Estado -->
+          <select class="form-select form-select-sm w-auto" id="filtroEstadoAv" onchange="filtrarAvance()">
+            <option value="">Todos los estados</option>
+            <option>Completado</option>
+            <option>En proceso</option>
+            <option>Pausado</option>
+            <option>Pendiente</option>
+          </select>
+          <!-- Filtro Empleado -->
+          <select class="form-select form-select-sm w-auto" id="filtroEmpleadoAv" onchange="filtrarAvance()">
+            <option value="">Todos los empleados</option>
+          </select>
+          <button class="btn btn-sm btn-link text-muted p-0" onclick="limpiarFiltros()" title="Limpiar filtros">
+            <i class="bi bi-x-circle"></i>
+          </button>
+        </div>
+        <!-- Fila de acciones + toggle vista -->
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="btn-group btn-group-sm" id="btnVistaAv" role="group">
+            <button type="button" class="btn btn-outline-secondary active" id="btnVistaLista"
+              onclick="setVista('lista')" title="Tabla de registros">
+              <i class="bi bi-table me-1"></i>Lista
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="btnVistaObra"
+              onclick="setVista('obra')" title="Ver por obra">
+              <i class="bi bi-kanban me-1"></i>Por obra
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="btnVistaMueble"
+              onclick="setVista('mueble')" title="Ver por mueble">
+              <i class="bi bi-grid-3x3-gap me-1"></i>Por mueble
+            </button>
+          </div>
+          <div class="d-flex gap-2">
+            <a href="/avance/resumen" class="btn btn-sm btn-outline-primary" title="Dashboard de avance por obra">
+              <i class="bi bi-speedometer2 me-1"></i>Dashboard
+            </a>
+            <button class="btn btn-sm btn-outline-secondary" onclick="imprimirHojaRegistro()" title="Imprimir hoja de registro para llenado manual">
+              <i class="bi bi-printer me-1"></i>Imprimir hoja
+            </button>
+            <button class="btn btn-sm btn-success" onclick="abrirModalAvance()">
+              <i class="bi bi-plus-lg me-1"></i>Registrar avance
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vista Lista -->
+      <div id="tablaAvanceWrap" class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover dt-table" id="tablaAvance">
+            <thead><tr>
+              <th>Fecha</th><th>Obra</th><th>Mueble</th><th>ID OP</th>
+              <th>Empleado</th><th>Etapa</th><th>Estado</th><th>Horas</th><th>Piezas</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Vista Por obra -->
+      <div id="vistaObraWrap" class="card-body" style="display:none;">
+        <div class="row g-3" id="obraCards">
+          <div class="col-12 text-center text-muted py-4">
+            <div class="spinner-border spinner-border-sm me-2"></div>Cargando...
+          </div>
+        </div>
+      </div>
+
+      <!-- Vista Por mueble -->
+      <div id="vistaMuebleWrap" class="card-body" style="display:none;">
+        <div class="row g-3" id="muebleCards">
+          <div class="col-12 text-center text-muted py-4">
+            <div class="spinner-border spinner-border-sm me-2"></div>Cargando...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel lateral -->
+  <div class="col-md-4">
+    <!-- Resumen del filtro activo -->
+    <div class="card mb-3" id="cardResumen" style="display:none;">
+      <div class="card-header py-2"><i class="bi bi-info-circle me-2"></i><span id="resumenTitulo">Resumen</span></div>
+      <div class="card-body py-2 px-3" id="resumenBody"></div>
+    </div>
+    <!-- Gráfico estados -->
+    <div class="card mb-3">
+      <div class="card-header py-2"><i class="bi bi-pie-chart me-2"></i>Estado de OPs</div>
+      <div class="card-body">
+        <canvas id="chartEstados" height="200"></canvas>
+        <div id="chartEmpty" class="text-center text-muted small fst-italic d-none">Sin registros</div>
+      </div>
+    </div>
+    <!-- Horas por empleado -->
+    <div class="card">
+      <div class="card-header py-2"><i class="bi bi-person-lines-fill me-2"></i>Horas por empleado</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0" id="tablaHorasEmp">
+          <thead><tr><th>Empleado</th><th>Horas</th><th>Regs.</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Registrar Avance -->
+<div class="modal fade" id="modalAvance" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-check2-square me-2"></i>Registrar Avance</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label">Fecha *</label>
+            <input type="text" class="form-control datepicker" id="avFecha">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Estado</label>
+            <select class="form-select" id="avEstado">
+              <option>En proceso</option><option>Completado</option>
+              <option>Pausado</option><option>Pendiente</option>
+            </select>
+          </div>
+          <!-- Obra → Mueble → OP en cascada -->
+          <div class="col-6">
+            <label class="form-label">Obra</label>
+            <select class="form-select" id="avObra" onchange="onAvObraChange()">
+              <option value="">— Todas —</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Mueble</label>
+            <select class="form-select" id="avMueble" onchange="onAvMuebleChange()">
+              <option value="">— Todos —</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Orden de Producción *</label>
+            <select class="form-select" id="avOP"></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Empleado *</label>
+            <select class="form-select" id="avEmpleado"></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Etapa</label>
+            <select class="form-select" id="avEtapa"></select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Horas trabajadas</label>
+            <input type="number" class="form-control" id="avHoras" min="0.5" step="0.5" value="8">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Piezas completadas</label>
+            <input type="number" class="form-control" id="avPiezas" min="0" step="1">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-success" onclick="guardarAvance()">
+          <i class="bi bi-save me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

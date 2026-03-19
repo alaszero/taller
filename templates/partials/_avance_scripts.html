@@ -1,0 +1,593 @@
+<script>
+let avances=[], ordenes=[], empleados=[], etapas=[], proyectos=[], muebles=[];
+let chartEstados = null;
+let _vista = 'lista';
+
+// ── Lookups rápidos ──
+function nombreEmp(id) {
+  const e = empleados.find(x=>x.EmpleadoID===id);
+  return e ? `${e.Nombre} ${e.Apellido}` : id;
+}
+function opInfo(opId) { return ordenes.find(o=>o.ID_OP===opId)||{}; }
+function muebleInfo(mid) { return muebles.find(m=>m.ID_Mueble===mid)||{}; }
+function proyectoDeOP(opId) {
+  const op = opInfo(opId);
+  const mu = muebleInfo(op.ID_Mueble||'');
+  return proyectos.find(p=>p.ID_Proyecto===mu.ID_Proyecto)||null;
+}
+
+// ── Carga inicial ──
+async function cargarDatos() {
+  const safe = url => fetch(url).then(r=>r.json()).catch(()=>[]);
+  [avances, ordenes, empleados, etapas, proyectos, muebles] = await Promise.all([
+    safe('/api/avance'),
+    safe('/api/ordenes'),
+    safe('/api/empleados'),
+    safe('/api/etapas'),
+    safe('/api/proyectos'),
+    safe('/api/muebles'),
+  ]);
+
+  // Poblar filtro Obra
+  const obSel = document.getElementById('filtroObra');
+  proyectos.forEach(p => {
+    obSel.innerHTML += `<option value="${p.ID_Proyecto}">${p.Nombre_Obra||p.ID_Proyecto}</option>`;
+  });
+
+  // Poblar filtro Empleado
+  const empSel = document.getElementById('filtroEmpleadoAv');
+  empleados.forEach(e => {
+    empSel.innerHTML += `<option value="${e.EmpleadoID}">${e.Nombre} ${e.Apellido}</option>`;
+  });
+
+  // Poblar OP selector (completo por defecto)
+  poblarOPFilter(ordenes);
+
+  filtrarAvance();
+}
+
+function poblarOPFilter(ops) {
+  const sel = document.getElementById('filtroOPAvance');
+  sel.innerHTML = '<option value="">Todas las OPs</option>';
+  ops.forEach(o => {
+    sel.innerHTML += `<option value="${o.ID_OP}">${o.ID_OP} — ${o.Etapa||''}</option>`;
+  });
+}
+
+// ── Filtrado en cascada ──
+function onObraChange() {
+  const obra = document.getElementById('filtroObra').value;
+  let filteredOps = ordenes;
+  if (obra) {
+    const muIds = muebles.filter(m=>m.ID_Proyecto===obra).map(m=>m.ID_Mueble);
+    filteredOps = ordenes.filter(o=>muIds.includes(o.ID_Mueble));
+  }
+  document.getElementById('filtroOPAvance').value = '';
+  poblarOPFilter(filteredOps);
+  filtrarAvance();
+}
+
+function limpiarFiltros() {
+  ['filtroObra','filtroOPAvance','filtroEstadoAv','filtroEmpleadoAv'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  poblarOPFilter(ordenes);
+  filtrarAvance();
+}
+
+function filtrarAvance() {
+  const obra = document.getElementById('filtroObra').value;
+  const op   = document.getElementById('filtroOPAvance').value;
+  const est  = document.getElementById('filtroEstadoAv').value;
+  const emp  = document.getElementById('filtroEmpleadoAv').value;
+
+  let data = [...avances];
+  if (op)   data = data.filter(a=>a.ID_OP===op);
+  if (est)  data = data.filter(a=>a.Estado===est);
+  if (emp)  data = data.filter(a=>a.EmpleadoID===emp);
+  if (obra) {
+    const muIds = muebles.filter(m=>m.ID_Proyecto===obra).map(m=>m.ID_Mueble);
+    const opIds = ordenes.filter(o=>muIds.includes(o.ID_Mueble)).map(o=>o.ID_OP);
+    data = data.filter(a=>opIds.includes(a.ID_OP));
+  }
+
+  // Resumen contextual
+  actualizarResumen(data, obra, op);
+
+  if      (_vista === 'obra')   renderPorObra(data, obra);
+  else if (_vista === 'mueble') renderPorMueble(data, obra);
+  else                          renderAvance(data);
+
+  renderHorasEmpleado(data);
+  renderChartEstados(data);
+}
+
+function actualizarResumen(data, obra, op) {
+  const card = document.getElementById('cardResumen');
+  if (!obra && !op) { card.style.display='none'; return; }
+  card.style.display='';
+  const totalH = data.reduce((s,a)=>s+parseFloat(a.Horas||0),0);
+  const totalP = data.reduce((s,a)=>s+parseInt(a.Piezas||0),0);
+  const estados = {};
+  data.forEach(a=>{ estados[a.Estado]=(estados[a.Estado]||0)+1; });
+  const tit = op ? `OP: ${op}` : (proyectos.find(p=>p.ID_Proyecto===obra)||{}).Nombre_Obra||obra;
+  document.getElementById('resumenTitulo').textContent = tit;
+  document.getElementById('resumenBody').innerHTML = `
+    <div class="row text-center g-2">
+      <div class="col-4"><div class="fw-bold fs-5">${data.length}</div><div class="text-muted" style="font-size:11px;">Registros</div></div>
+      <div class="col-4"><div class="fw-bold fs-5">${totalH.toFixed(1)}</div><div class="text-muted" style="font-size:11px;">Horas</div></div>
+      <div class="col-4"><div class="fw-bold fs-5">${totalP}</div><div class="text-muted" style="font-size:11px;">Piezas</div></div>
+    </div>
+    <hr class="my-2">
+    <div class="d-flex flex-wrap gap-1">
+      ${Object.entries(estados).map(([e,n])=>`<span class="badge ${estadoBadgeCls(e)}">${e}: ${n}</span>`).join('')}
+    </div>`;
+}
+
+// ── Vista: Lista ──
+function estadoBadgeCls(est) {
+  return {'Completado':'bg-success','En proceso':'bg-primary','Pausado':'bg-warning text-dark','Pendiente':'bg-secondary'}[est]||'bg-secondary';
+}
+function estadoBadgeAv(est) { return `<span class="badge ${estadoBadgeCls(est)}">${est}</span>`; }
+
+function renderAvance(data) {
+  destroyDT('#tablaAvance');
+  document.querySelector('#tablaAvance tbody').innerHTML = data.map(a => {
+    const proy = proyectoDeOP(a.ID_OP);
+    const op   = opInfo(a.ID_OP);
+    const mu   = muebleInfo(op.ID_Mueble||'');
+    return `<tr>
+      <td>${a.Fecha}</td>
+      <td class="small">${proy ? proy.Nombre_Obra : '—'}</td>
+      <td class="small">${mu.Mueble||'—'}</td>
+      <td><code>${a.ID_OP}</code></td>
+      <td>${nombreEmp(a.EmpleadoID)}</td>
+      <td>${a.Etapa||'—'}</td>
+      <td>${estadoBadgeAv(a.Estado)}</td>
+      <td>${a.Horas}</td>
+      <td>${a.Piezas||'—'}</td>
+    </tr>`;
+  }).join('');
+  initDT('#tablaAvance');
+}
+
+// ── Vista: Por obra ──
+function setVista(v) {
+  _vista = v;
+  document.getElementById('btnVistaLista').classList.toggle('active',  v==='lista');
+  document.getElementById('btnVistaObra').classList.toggle('active',   v==='obra');
+  document.getElementById('btnVistaMueble').classList.toggle('active', v==='mueble');
+  document.getElementById('tablaAvanceWrap').style.display  = v==='lista'  ? '' : 'none';
+  document.getElementById('vistaObraWrap').style.display    = v==='obra'   ? '' : 'none';
+  document.getElementById('vistaMuebleWrap').style.display  = v==='mueble' ? '' : 'none';
+  filtrarAvance();
+}
+
+function renderPorObra(data, filtroObra) {
+  const container = document.getElementById('obraCards');
+  let proysToShow = proyectos;
+  if (filtroObra) proysToShow = proyectos.filter(p=>p.ID_Proyecto===filtroObra);
+
+  const cards = proysToShow.map(p => {
+    const pid    = p.ID_Proyecto;
+    const pMues  = muebles.filter(m=>m.ID_Proyecto===pid);
+    const mueIds = pMues.map(m=>m.ID_Mueble);
+    const pOps   = ordenes.filter(o=>mueIds.includes(o.ID_Mueble));
+    if (!pOps.length) return '';
+
+    let totalHoras=0, totalPiezas=0;
+    const estCnt={};
+
+    // Para cada OP: último estado en los datos filtrados
+    const opStats = pOps.map(op => {
+      const opAvs = data.filter(a=>a.ID_OP===op.ID_OP);
+      const horas = opAvs.reduce((s,a)=>s+parseFloat(a.Horas||0),0);
+      const piezas= opAvs.reduce((s,a)=>s+parseInt(a.Piezas||0),0);
+      const lastAv= [...opAvs].sort((a,b)=>b.Fecha.localeCompare(a.Fecha))[0];
+      const est   = lastAv ? lastAv.Estado : null;
+      totalHoras += horas; totalPiezas += piezas;
+      if (est) estCnt[est]=(estCnt[est]||0)+1;
+      else     estCnt['Sin registro']=(estCnt['Sin registro']||0)+1;
+      return { op, horas, piezas, est, tieneAvance: opAvs.length>0 };
+    });
+
+    const total      = pOps.length;
+    const completadas= estCnt['Completado']||0;
+    const pct        = total>0 ? Math.round(completadas/total*100) : 0;
+    const pctColor   = pct>=75?'success':pct>=40?'warning':'danger';
+    const prBadge    = {'En proceso':'bg-primary','Iniciado':'bg-info text-dark','Completado':'bg-success','Pausado':'bg-secondary'}[p.Estado]||'bg-secondary';
+
+    // Mueble rows
+    const muebleHtml = pMues.map(mu => {
+      const muStats = opStats.filter(x=>x.op.ID_Mueble===mu.ID_Mueble);
+      if (!muStats.length) return '';
+      const opRows = muStats.map(x=>`<tr>
+        <td class="ps-3 small"><code>${x.op.ID_OP}</code></td>
+        <td class="small text-muted">${x.op.Etapa||'—'}</td>
+        <td>${x.est ? estadoBadgeAv(x.est) : '<span class="badge bg-light text-muted" style="border:1px solid #dee2e6">Sin registro</span>'}</td>
+        <td class="text-end small">${x.horas>0?x.horas.toFixed(1)+' h':'—'}</td>
+        <td class="text-end small">${x.piezas>0?x.piezas:'—'}</td>
+      </tr>`).join('');
+      const muCompletadas = muStats.filter(x => x.est === 'Completado').length;
+      const muPct = muStats.length > 0 ? Math.round(muCompletadas / muStats.length * 100) : 0;
+      const muPctCol = muPct >= 75 ? 'success' : muPct >= 40 ? 'warning' : 'danger';
+      return `<tr style="background:rgba(0,0,0,.03);">
+        <td colspan="3" class="fw-semibold small py-1 ps-2">
+          <i class="bi bi-grid me-1 text-muted"></i>${mu.Mueble}
+          <span class="text-muted fw-normal ms-1">(${muStats.length} OP${muStats.length!==1?'s':''})</span>
+        </td>
+        <td colspan="2" class="py-1 pe-2">
+          <div class="d-flex align-items-center gap-1 justify-content-end">
+            <div class="progress flex-grow-1" style="height:4px;max-width:70px;">
+              <div class="progress-bar bg-${muPctCol}" style="width:${muPct}%"></div>
+            </div>
+            <small class="text-${muPctCol} fw-semibold" style="min-width:28px;text-align:right;">${muPct}%</small>
+          </div>
+        </td>
+      </tr>${opRows}`;
+    }).join('');
+
+    return `<div class="col-12 col-xl-6">
+      <div class="card mb-2">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+          <div>
+            <span class="fw-bold">${p.Nombre_Obra||pid}</span>
+            <span class="badge ${prBadge} ms-2 fw-normal">${p.Estado||'—'}</span>
+          </div>
+          <div class="d-flex gap-3 text-muted small">
+            <span title="Horas totales"><i class="bi bi-clock me-1"></i>${totalHoras.toFixed(1)} h</span>
+            ${totalPiezas>0?`<span title="Piezas"><i class="bi bi-box me-1"></i>${totalPiezas}</span>`:''}
+          </div>
+        </div>
+        <div class="card-body py-2 px-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <div class="d-flex flex-wrap gap-1">
+              ${Object.entries(estCnt).map(([e,n])=>`<span class="badge ${estadoBadgeCls(e)} fw-normal">${e}: ${n}</span>`).join('')}
+            </div>
+            <span class="fw-bold small text-${pctColor} ms-2">${pct}%</span>
+          </div>
+          <div class="progress mb-0" style="height:5px;" title="${completadas}/${total} OPs completadas">
+            <div class="progress-bar bg-${pctColor}" style="width:${pct}%"></div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" style="font-size:12px;">
+            <colgroup><col style="width:28%"><col style="width:20%"><col style="width:30%"><col style="width:12%"><col style="width:10%"></colgroup>
+            <thead><tr><th>OP</th><th>Etapa</th><th>Estado</th><th class="text-end">Hrs</th><th class="text-end">Pzas</th></tr></thead>
+            <tbody>${muebleHtml}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  container.innerHTML = cards || '<div class="col-12 text-center text-muted py-4">Sin proyectos con OPs registradas.</div>';
+}
+
+// ── Vista: Por mueble ──
+function renderPorMueble(data, filtroObra) {
+  const container = document.getElementById('muebleCards');
+
+  // Muebles a mostrar (filtrados por obra si aplica)
+  let muestaMuebles = muebles;
+  if (filtroObra) muestaMuebles = muebles.filter(m => m.ID_Proyecto === filtroObra);
+
+  const cards = muestaMuebles.map(mu => {
+    const mid    = mu.ID_Mueble;
+    const muOps  = ordenes.filter(o => o.ID_Mueble === mid);
+    if (!muOps.length) return '';
+
+    // Proyecto al que pertenece
+    const proy = proyectos.find(p => p.ID_Proyecto === mu.ID_Proyecto);
+
+    let totalHoras = 0;
+    const estCnt = {};
+
+    const opRows = muOps.map(op => {
+      const opAvs  = data.filter(a => a.ID_OP === op.ID_OP);
+      const horas  = opAvs.reduce((s,a) => s + parseFloat(a.Horas || 0), 0);
+      const lastAv = [...opAvs].sort((a,b) => b.Fecha.localeCompare(a.Fecha))[0];
+      const est    = lastAv ? lastAv.Estado : null;
+      totalHoras  += horas;
+      if (est) estCnt[est] = (estCnt[est] || 0) + 1;
+      else     estCnt['Sin registro'] = (estCnt['Sin registro'] || 0) + 1;
+
+      const lastEmp = lastAv ? nombreEmp(lastAv.EmpleadoID) : '—';
+
+      return `<tr>
+        <td><code class="small">${op.ID_OP}</code></td>
+        <td class="small">${op.Etapa || '—'}</td>
+        <td>${est ? estadoBadgeAv(est) : '<span class="badge bg-light text-muted border">Sin registro</span>'}</td>
+        <td class="text-end small">${horas > 0 ? horas.toFixed(1) + ' h' : '—'}</td>
+        <td class="small text-muted">${lastEmp}</td>
+      </tr>`;
+    }).join('');
+
+    const total      = muOps.length;
+    const completadas= estCnt['Completado'] || 0;
+    const pct        = total > 0 ? Math.round(completadas / total * 100) : 0;
+    const pctColor   = pct >= 75 ? 'success' : pct >= 40 ? 'warning' : 'danger';
+
+    return `<div class="col-12 col-lg-6 col-xl-4">
+      <div class="card h-100">
+        <div class="card-header py-2">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-bold"><i class="bi bi-grid me-1 text-muted"></i>${mu.Mueble || mid}</div>
+              ${proy ? `<div class="text-muted small mt-1"><i class="bi bi-building me-1"></i>${proy.Nombre_Obra || proy.ID_Proyecto}</div>` : ''}
+            </div>
+            <div class="text-end small text-muted flex-shrink-0 ms-2">
+              <div><i class="bi bi-clock me-1"></i>${totalHoras.toFixed(1)} h</div>
+            </div>
+          </div>
+          <!-- Barra de progreso -->
+          <div class="mt-2">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div class="d-flex flex-wrap gap-1">
+                ${Object.entries(estCnt).map(([e,n]) =>
+                  `<span class="badge ${estadoBadgeCls(e)} fw-normal" style="font-size:10px;">${e}: ${n}</span>`
+                ).join('')}
+              </div>
+              <span class="fw-bold small text-${pctColor} ms-1">${pct}%</span>
+            </div>
+            <div class="progress" style="height:4px;" title="${completadas}/${total} OPs completadas">
+              <div class="progress-bar bg-${pctColor}" style="width:${pct}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" style="font-size:11px;">
+            <thead class="table-light">
+              <tr>
+                <th>OP</th><th>Etapa</th><th>Estado</th>
+                <th class="text-end">Hrs</th><th>Último emp.</th>
+              </tr>
+            </thead>
+            <tbody>${opRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  container.innerHTML = cards ||
+    '<div class="col-12 text-center text-muted py-4">Sin muebles con OPs registradas para los filtros actuales.</div>';
+}
+
+// ── Panel lateral ──
+function renderHorasEmpleado(data) {
+  const mapa = {};
+  data.forEach(a => {
+    if (!mapa[a.EmpleadoID]) mapa[a.EmpleadoID]={horas:0,registros:0};
+    mapa[a.EmpleadoID].horas     += parseFloat(a.Horas||0);
+    mapa[a.EmpleadoID].registros++;
+  });
+  document.querySelector('#tablaHorasEmp tbody').innerHTML =
+    Object.entries(mapa).sort((a,b)=>b[1].horas-a[1].horas).map(([id,v])=>`<tr>
+      <td>${nombreEmp(id)}</td>
+      <td><strong>${v.horas.toFixed(1)}</strong></td>
+      <td class="text-muted">${v.registros}</td>
+    </tr>`).join('') || '<tr><td colspan="3" class="text-center text-muted py-2 small">Sin datos</td></tr>';
+}
+
+function renderChartEstados(data) {
+  const mapa = {};
+  data.forEach(a => { mapa[a.Estado]=(mapa[a.Estado]||0)+1; });
+  const labels = Object.keys(mapa);
+  const vals   = Object.values(mapa);
+  const colors = {'Completado':'#198754','En proceso':'#0d6efd','Pausado':'#ffc107','Pendiente':'#6c757d','Sin registro':'#adb5bd'};
+  const empty  = document.getElementById('chartEmpty');
+  const canvas = document.getElementById('chartEstados');
+  if (!labels.length) {
+    canvas.style.display='none'; empty.classList.remove('d-none'); return;
+  }
+  canvas.style.display=''; empty.classList.add('d-none');
+  const ctx = canvas.getContext('2d');
+  if (chartEstados) chartEstados.destroy();
+  chartEstados = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets:[{ data:vals, backgroundColor:labels.map(l=>colors[l]||'#adb5bd'), borderWidth:2 }] },
+    options: { responsive:true, plugins:{ legend:{ position:'bottom', labels:{ font:{ size:12 } } } } }
+  });
+}
+
+// ── Modal: cascada Obra → Mueble → OP ──
+function abrirModalAvance() {
+  // Poblar obra selector
+  const avObSel = document.getElementById('avObra');
+  avObSel.innerHTML = '<option value="">— Todas —</option>';
+  proyectos.forEach(p => {
+    avObSel.innerHTML += `<option value="${p.ID_Proyecto}">${p.Nombre_Obra||p.ID_Proyecto}</option>`;
+  });
+  // Pre-seleccionar obra del filtro si hay una activa
+  const filtroObra = document.getElementById('filtroObra').value;
+  if (filtroObra) { avObSel.value = filtroObra; onAvObraChange(); }
+  else            { poblarAvMueble([]); poblarAvOP(ordenes); }
+
+  poblarSelect('avEmpleado', empleados, 'EmpleadoID', e=>`${e.EmpleadoID} — ${e.Nombre} ${e.Apellido}`);
+  poblarSelect('avEtapa', etapas, 'Etapa', e=>`${e.Orden||''} ${e.Etapa}`);
+  document.getElementById('avOP').addEventListener('change', function() {
+    const op = ordenes.find(o=>o.ID_OP===this.value);
+    if (op) document.getElementById('avEtapa').value = op.Etapa;
+  });
+  flatpickr('#avFecha', {locale:'es', defaultDate:'today', dateFormat:'Y-m-d'});
+  new bootstrap.Modal(document.getElementById('modalAvance')).show();
+}
+
+function onAvObraChange() {
+  const obra = document.getElementById('avObra').value;
+  const pMues = obra ? muebles.filter(m=>m.ID_Proyecto===obra) : muebles;
+  poblarAvMueble(pMues);
+}
+
+function poblarAvMueble(pMues) {
+  const sel = document.getElementById('avMueble');
+  sel.innerHTML = '<option value="">— Todos —</option>';
+  pMues.forEach(m => { sel.innerHTML += `<option value="${m.ID_Mueble}">${m.Mueble||m.ID_Mueble}</option>`; });
+  onAvMuebleChange();
+}
+
+function onAvMuebleChange() {
+  const mueble = document.getElementById('avMueble').value;
+  const obra   = document.getElementById('avObra').value;
+  let ops = ordenes;
+  if (mueble) { ops = ordenes.filter(o=>o.ID_Mueble===mueble); }
+  else if (obra) {
+    const muIds = muebles.filter(m=>m.ID_Proyecto===obra).map(m=>m.ID_Mueble);
+    ops = ordenes.filter(o=>muIds.includes(o.ID_Mueble));
+  }
+  poblarAvOP(ops);
+}
+
+function poblarAvOP(ops) {
+  const sel = document.getElementById('avOP');
+  sel.innerHTML = '<option value="">Seleccionar OP...</option>';
+  ops.forEach(o => { sel.innerHTML += `<option value="${o.ID_OP}">${o.ID_OP} — ${o.Etapa||''}</option>`; });
+}
+
+async function guardarAvance() {
+  const payload = {
+    Fecha:      document.getElementById('avFecha').value,
+    ID_OP:      document.getElementById('avOP').value,
+    EmpleadoID: document.getElementById('avEmpleado').value,
+    Etapa:      document.getElementById('avEtapa').value,
+    Estado:     document.getElementById('avEstado').value,
+    Horas:      document.getElementById('avHoras').value,
+    Piezas:     document.getElementById('avPiezas').value,
+  };
+  if (!payload.Fecha||!payload.ID_OP||!payload.EmpleadoID)
+    return showToast('Completa los campos requeridos','danger');
+  await fetch('/api/avance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  bootstrap.Modal.getInstance(document.getElementById('modalAvance')).hide();
+  showToast('Avance registrado','success');
+  avances = await fetch('/api/avance').then(r=>r.json());
+  filtrarAvance();
+}
+
+// ── Determina si una OP sigue activa (último estado ≠ Completado, o sin registro) ──
+function esOPActiva(opId) {
+  const recs = avances.filter(a => a.ID_OP === opId);
+  if (!recs.length) return true;
+  const last = [...recs].sort((a,b) => b.Fecha.localeCompare(a.Fecha))[0];
+  return last.Estado !== 'Completado';
+}
+
+// ── Generar e imprimir hoja física de registro ──
+function imprimirHojaRegistro() {
+  const obraFiltro = document.getElementById('filtroObra').value;
+  const today = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+  const obraLabel = obraFiltro
+    ? (proyectos.find(p => p.ID_Proyecto === obraFiltro)||{}).Nombre_Obra || obraFiltro
+    : 'Todas las obras activas';
+
+  let proysToShow = proyectos;
+  if (obraFiltro) proysToShow = proyectos.filter(p => p.ID_Proyecto === obraFiltro);
+
+  const sections = proysToShow.map(p => {
+    const pid   = p.ID_Proyecto;
+    const pMues = muebles.filter(m => m.ID_Proyecto === pid);
+    const muebleSections = pMues.map(mu => {
+      const muOps = ordenes.filter(o => o.ID_Mueble === mu.ID_Mueble && esOPActiva(o.ID_OP));
+      if (!muOps.length) return '';
+      const rows = muOps.map(op => {
+        const recs   = avances.filter(a => a.ID_OP === op.ID_OP);
+        const lastAv = recs.length ? [...recs].sort((a,b) => b.Fecha.localeCompare(a.Fecha))[0] : null;
+        const estAct = lastAv ? lastAv.Estado : 'Sin registro';
+        return `<tr>
+          <td>${op.ID_OP}</td>
+          <td>${op.Etapa||'—'}</td>
+          <td>${estAct}</td>
+          <td class="campo"></td>
+          <td class="campo-num"></td>
+          <td class="campo-num"></td>
+          <td class="campo"></td>
+          <td class="campo-nota"></td>
+        </tr>`;
+      }).join('');
+      return `<div class="mueble-section">
+        <h3>${mu.Mueble||mu.ID_Mueble}</h3>
+        <table><thead><tr>
+          <th style="width:72px">ID OP</th>
+          <th style="width:130px">Etapa</th>
+          <th style="width:95px">Estado actual</th>
+          <th>Empleado</th>
+          <th style="width:50px">Horas</th>
+          <th style="width:50px">Piezas</th>
+          <th style="width:110px">Nuevo estado</th>
+          <th>Notas / Observaciones</th>
+        </tr></thead><tbody>${rows}</tbody></table>
+      </div>`;
+    }).join('');
+    if (!muebleSections.trim()) return '';
+    return `<div class="obra-section">
+      <h2>${p.Nombre_Obra||pid}</h2>
+      ${muebleSections}
+    </div>`;
+  }).join('');
+
+  if (!sections.trim()) return showToast('No hay OPs activas para imprimir', 'warning');
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Hoja de Registro — ${today}</title>
+<style>
+  @page { size: letter landscape; margin: 10mm 14mm; }
+  *  { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:9pt; color:#000; }
+  .doc-header { display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:2.5px solid #000; padding-bottom:5pt; margin-bottom:7pt; }
+  .doc-header h1 { font-size:13pt; margin-bottom:2pt; }
+  .doc-header p  { font-size:8pt; color:#555; }
+  .doc-meta      { text-align:right; font-size:8pt; line-height:1.7; }
+  .linea { display:inline-block; border-bottom:1px solid #000; min-width:110pt; margin-left:3pt; }
+  .instrucciones { font-size:7.5pt; color:#444; background:#f4f4f4; border:1px solid #ccc;
+    padding:4pt 8pt; margin-bottom:9pt; border-radius:2pt; }
+  h2 { font-size:10.5pt; background:#1a1a1a; color:#fff; padding:3pt 7pt;
+    margin:11pt 0 3pt; border-radius:2pt; page-break-after:avoid; }
+  h3 { font-size:9pt; background:#e6e6e6; border-left:3pt solid #555;
+    padding:2pt 6pt; margin:5pt 0 2pt; page-break-after:avoid; }
+  table { width:100%; border-collapse:collapse; margin-bottom:3pt; }
+  th { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    background:#f0f0f0; border:1px solid #aaa; padding:2pt 4pt; }
+  td { border:1px solid #bbb; height:18pt; vertical-align:middle; font-size:8.5pt; padding-left:4pt; }
+  td.campo     { background:#fafafa; }
+  td.campo-num { background:#fafafa; text-align:center; }
+  td.campo-nota { background:#fafafa; }
+  .obra-section { page-break-inside:avoid; }
+  .mueble-section { margin-bottom:4pt; }
+  .firma-row { margin-top:16pt; display:flex; gap:30pt; }
+  .firma-box { flex:1; padding-top:3pt; border-top:1px solid #000;
+    font-size:7.5pt; text-align:center; color:#555; }
+</style></head><body>
+<div class="doc-header">
+  <div>
+    <h1>Hoja de Registro de Avance</h1>
+    <p>${obraLabel}</p>
+  </div>
+  <div class="doc-meta">
+    <div>Impreso: ${today}</div>
+    <div>Fecha de registro: <span class="linea">&nbsp;</span></div>
+    <div>Turno: <span class="linea" style="min-width:70pt;">&nbsp;</span></div>
+  </div>
+</div>
+<div class="instrucciones">
+  <strong>Instrucciones:</strong> Llena los campos en blanco (<em>Empleado, Horas, Piezas, Nuevo estado, Notas</em>) al finalizar cada actividad.
+  Estados: <strong>En proceso · Completado · Pausado · Pendiente</strong>. Entrega esta hoja al encargado de captura al final del día.
+</div>
+${sections}
+<div class="firma-row">
+  <div class="firma-box">Supervisó / Encargado</div>
+  <div class="firma-box">Capturado por</div>
+  <div class="firma-box">Fecha de captura en sistema</div>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=1050,height=720');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+}
+
+cargarDatos();
+</script>

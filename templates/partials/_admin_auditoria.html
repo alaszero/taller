@@ -1,0 +1,156 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     AUDITORÍA DEL SISTEMA  (yekflow + superusuario)
+     ══════════════════════════════════════════════════════════════════════════ -->
+{% if current_user and (current_user.nivel == 'yekflow' or current_user.nivel == 'superusuario') %}
+<div class="card border-secondary mb-4" id="cardAuditoria">
+  <div class="card-header bg-secondary bg-opacity-10 d-flex align-items-center gap-2">
+    <i class="bi bi-journal-text text-secondary fs-5"></i>
+    <span class="fw-semibold">Auditoría del Sistema</span>
+    <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="exportarAuditCSV()">
+      <i class="bi bi-download me-1"></i>Exportar CSV
+    </button>
+  </div>
+  <div class="card-body">
+    <!-- Filtros -->
+    <div class="row g-2 mb-3">
+      {% if current_user.nivel == 'yekflow' %}
+      <div class="col-6 col-md-2">
+        <input type="text" class="form-control form-control-sm" id="auditTaller" placeholder="Taller">
+      </div>
+      {% endif %}
+      <div class="col-6 col-md-2">
+        <input type="text" class="form-control form-control-sm" id="auditTabla" placeholder="Tabla">
+      </div>
+      <div class="col-6 col-md-2">
+        <input type="text" class="form-control form-control-sm" id="auditUsuario" placeholder="Usuario">
+      </div>
+      <div class="col-6 col-md-2">
+        <input type="date" class="form-control form-control-sm" id="auditDesde" title="Desde">
+      </div>
+      <div class="col-6 col-md-2">
+        <input type="date" class="form-control form-control-sm" id="auditHasta" title="Hasta">
+      </div>
+      <div class="col-6 col-md-2">
+        <button class="btn btn-sm btn-primary w-100" onclick="cargarAudit()">
+          <i class="bi bi-search me-1"></i>Buscar
+        </button>
+      </div>
+    </div>
+    <!-- Tabla -->
+    <div class="table-responsive" style="max-height:380px;overflow-y:auto;">
+      <table class="table table-hover table-sm small mb-0" id="tablaAudit">
+        <thead class="table-light">
+          <tr>
+            <th style="white-space:nowrap;">Fecha/Hora</th>
+            <th>Usuario</th>
+            {% if current_user.nivel == 'yekflow' %}<th>Taller</th>{% endif %}
+            <th>Acción</th>
+            <th>Tabla</th>
+            <th>Registro</th>
+            <th>IP</th>
+            <th style="min-width:60px;"></th>
+          </tr>
+        </thead>
+        <tbody id="bodyAudit">
+          <tr><td colspan="8" class="text-center text-muted py-3">Usa los filtros y presiona Buscar</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal detalle audit -->
+<div class="modal fade" id="modalAuditDetalle" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-journal-text me-2"></i>Detalle de Cambio</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <h6 class="text-muted mb-2"><i class="bi bi-arrow-left me-1"></i>Antes</h6>
+            <pre id="auditAntes" class="bg-light p-2 rounded small" style="max-height:300px;overflow:auto;white-space:pre-wrap;"></pre>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-muted mb-2"><i class="bi bi-arrow-right me-1"></i>Después</h6>
+            <pre id="auditDespues" class="bg-light p-2 rounded small" style="max-height:300px;overflow:auto;white-space:pre-wrap;"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const _esYekflow = {{ 'true' if current_user.nivel == 'yekflow' else 'false' }};
+
+async function cargarAudit() {
+  const params = new URLSearchParams();
+  if (_esYekflow) {
+    const taller = document.getElementById('auditTaller')?.value.trim();
+    if (taller) params.set('taller', taller);
+  }
+  const tabla   = document.getElementById('auditTabla')?.value.trim();
+  const usuario = document.getElementById('auditUsuario')?.value.trim();
+  const desde   = document.getElementById('auditDesde')?.value;
+  const hasta   = document.getElementById('auditHasta')?.value;
+  if (tabla)   params.set('tabla', tabla);
+  if (usuario) params.set('usuario', usuario);
+  if (desde)   params.set('desde', desde);
+  if (hasta)   params.set('hasta', hasta + 'T23:59:59');
+  params.set('limit', 200);
+
+  const tbody = document.getElementById('bodyAudit');
+  tbody.innerHTML = '<tr><td colspan="8" class="text-center py-2"><div class="spinner-border spinner-border-sm"></div></td></tr>';
+  try {
+    const r = await fetch('/api/audit?' + params.toString());
+    const rows = await r.json();
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Sin resultados</td></tr>';
+      return;
+    }
+    const accionBadge = {INSERT:'success', UPDATE:'warning', DELETE:'danger'};
+    tbody.innerHTML = rows.map(row => `
+      <tr>
+        <td style="white-space:nowrap;">${(row.ts||'').replace('T',' ').substring(0,19)}</td>
+        <td>${row.usuario||''}</td>
+        ${_esYekflow ? `<td><small class="text-muted">${row.taller_id||''}</small></td>` : ''}
+        <td><span class="badge bg-${accionBadge[row.accion]||'secondary'}">${row.accion||''}</span></td>
+        <td><code>${row.tabla||''}</code></td>
+        <td><small class="text-muted">${row.registro_id||''}</small></td>
+        <td><small class="text-muted">${row.ip||''}</small></td>
+        <td>
+          ${(row.antes||row.despues) ? `<button class="btn btn-xs btn-outline-secondary btn-sm py-0 px-1" onclick='verDetalleAudit(${JSON.stringify(row.antes)},${JSON.stringify(row.despues)})'><i class="bi bi-eye"></i></button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-3">Error al cargar</td></tr>';
+  }
+}
+
+function verDetalleAudit(antes, despues) {
+  document.getElementById('auditAntes').textContent   = antes   ? JSON.stringify(JSON.parse(antes),   null, 2) : '(vacío)';
+  document.getElementById('auditDespues').textContent = despues ? JSON.stringify(JSON.parse(despues), null, 2) : '(vacío)';
+  new bootstrap.Modal(document.getElementById('modalAuditDetalle')).show();
+}
+
+async function exportarAuditCSV() {
+  const params = new URLSearchParams({limit: 1000});
+  if (_esYekflow) {
+    const taller = document.getElementById('auditTaller')?.value.trim();
+    if (taller) params.set('taller', taller);
+  }
+  const rows = await (await fetch('/api/audit?' + params)).json();
+  if (!rows.length) { showToast('Sin datos para exportar', 'warning'); return; }
+  const cols = ['ts','usuario','taller_id','accion','tabla','registro_id','ip'];
+  const csv  = [cols.join(','), ...rows.map(r => cols.map(c => JSON.stringify(r[c]||'')).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'audit_log_' + new Date().toISOString().substring(0,10) + '.csv';
+  a.click();
+}
+</script>
+{% endif %}

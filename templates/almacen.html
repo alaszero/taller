@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Almacén{% endblock %}
+{% block page_title %}Gestión de Almacén{% endblock %}
+
+{% block content %}
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="almacenTabs">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabStock">
+    <i class="bi bi-box-seam me-1"></i>Stock actual</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabMovimientos">
+    <i class="bi bi-arrow-left-right me-1"></i>Movimientos</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCatalogo">
+    <i class="bi bi-list-ul me-1"></i>Catálogo materiales</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabUbicaciones"
+    onclick="if(!_ubicLoaded){cargarUbicaciones();_ubicLoaded=true;}">
+    <i class="bi bi-geo-alt me-1"></i>Mapa de ubicaciones</button></li>
+</ul>
+
+<div class="tab-content">
+  {% include "partials/_almacen_stock.html" %}
+
+  {% include "partials/_almacen_movimientos.html" %}
+
+  {% include "partials/_almacen_catalogo.html" %}
+
+  {% include "partials/_almacen_ubicaciones.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% include "partials/_almacen_scripts.html" %}
+{% endblock %}

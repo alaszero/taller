@@ -1,0 +1,19 @@
+[Unit]
+Description=Taller Carpintería Web App
+After=network.target
+
+[Service]
+User=taller
+Group=taller
+WorkingDirectory=/home/taller/app
+Environment="FLASK_ENV=production"
+Environment="SECRET_KEY=CAMBIAR_POR_CLAVE_SEGURA_ALEATORIA"
+Environment="TALLER_DB=/home/taller/app/taller.db"
+ExecStart=/home/taller/app/venv/bin/python app.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
