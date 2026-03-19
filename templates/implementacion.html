@@ -458,7 +458,7 @@ Estados: <strong>En proceso · Completado · Pausado · Pendiente</strong></div>
 
 function imprimirForm(tipo) {
   if (FORMS[tipo]) FORMS[tipo]();
-  else alert('Formulario no disponible');
+  else Swal.fire({icon:'warning', title:'No disponible', text:'Este formulario no está disponible.', confirmButtonColor:'#f59e0b'});
 }
 
 // ── Manual de usuario ─────────────────────────────────────────────────────────
