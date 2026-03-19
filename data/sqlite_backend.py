@@ -61,7 +61,7 @@ def _audit(conn, accion, tabla, registro_id, antes=None, despues=None):
 
 def tlist(table):
     """Lista todos los registros de la tabla, filtrados por taller activo.
-    Incluye también filas con taller_id IS NULL para compatibilidad con datos legacy."""
+    Aislamiento estricto: solo devuelve datos del taller actual."""
     conn = get_db()
     tid = _current_taller_id()
     if tid and table not in _CROSS_TALLER_TABLES:
@@ -69,7 +69,7 @@ def tlist(table):
             cols = _db.get_columns(conn, table)
             if "taller_id" in cols:
                 cur = conn.execute(
-                    f'SELECT rowid, * FROM "{table}" WHERE "taller_id"=? OR "taller_id" IS NULL OR "taller_id"=\'\'',
+                    f'SELECT rowid, * FROM "{table}" WHERE "taller_id"=?',
                     (tid,)
                 )
                 return [_db._row_to_dict(r, cols) for r in cur.fetchall()]
@@ -81,7 +81,7 @@ def tlist(table):
 
 def tfiltered(table, **kw):
     """Lista registros filtrados por columna=valor, más filtro de taller activo.
-    Incluye filas con taller_id NULL (datos legacy) cuando se activa el filtro de taller."""
+    Aislamiento estricto: solo devuelve datos del taller actual."""
     conn = get_db()
     tid = _current_taller_id()
     if tid and table not in _CROSS_TALLER_TABLES:
@@ -90,7 +90,7 @@ def tfiltered(table, **kw):
             if "taller_id" in cols:
                 conds = [f'"{k}"=?' for k in kw]
                 params = list(kw.values())
-                conds.append(f'("taller_id"=? OR "taller_id" IS NULL OR "taller_id"=\'\')')
+                conds.append(f'"taller_id"=?')
                 params.append(tid)
                 where = " AND ".join(conds)
                 cur = conn.execute(f'SELECT rowid, * FROM "{table}" WHERE {where}', params)
@@ -252,10 +252,9 @@ def _seed_default_user(conn):
     except Exception:
         pass
 
-    # ── M1: seed TALLERES con datos iniciales ────────────────────────────────
+    # ── M1: seed TALLERES con taller principal ───────────────────────────────
     try:
         conn.execute("INSERT OR IGNORE INTO TALLERES(id,nombre) VALUES('rober_lang','Rober Lang')")
-        conn.execute("INSERT OR IGNORE INTO TALLERES(id,nombre) VALUES('testing','Testing')")
         conn.commit()
     except Exception:
         pass
@@ -326,78 +325,6 @@ def _seed_default_user(conn):
             conn.commit()
     except Exception:
         pass
-
-
-def migrate_base_data_to_taller_raw(db_path: str, source_taller_id: str, target_taller_id: str) -> bool:
-    """
-    Copia datos MAESTROS (no transaccionales) de un taller a otro.
-    VERSIÓN SIN CONTEXTO de Flask (para usar en cualquier contexto).
-
-    Copia:
-      - MATERIALES, HERRAMIENTAS, EMPLEADOS, UBICACIONES, PROVEEDORES, ETAPAS
-
-    NO copia (datos transaccionales):
-      - MOV_ALMACEN, MOV_HERRA, PROYECTOS, MUEBLES, ORDENES_PRODUCCION, REG_AVANCE, LOTES
-    """
-    _BASE_TABLES = ["MATERIALES", "HERRAMIENTAS", "EMPLEADOS", "UBICACIONES", "PROVEEDORES", "ETAPAS"]
-
-    try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-
-        for tabla in _BASE_TABLES:
-            try:
-                # Obtener columnas
-                cur = conn.execute(f"PRAGMA table_info({tabla})")
-                cols = [row[1] for row in cur.fetchall()]
-
-                # Obtener todos los registros del taller origen
-                cur = conn.execute(
-                    f'SELECT * FROM "{tabla}" WHERE taller_id = ?',
-                    (source_taller_id,)
-                )
-                rows = cur.fetchall()
-
-                # Insertar con taller_id destino (usar INSERT OR IGNORE para evitar duplicados)
-                for row in rows:
-                    values = dict(row)
-                    values["taller_id"] = target_taller_id
-
-                    col_names = [f'"{c}"' for c in cols if c in values]
-                    placeholders = ",".join("?" * len(col_names))
-                    sql_vals = [values[c.strip('"')] for c in col_names]
-
-                    sql = f'INSERT OR IGNORE INTO "{tabla}" ({",".join(col_names)}) VALUES ({placeholders})'
-                    try:
-                        conn.execute(sql, sql_vals)
-                    except Exception:
-                        pass
-
-                conn.commit()
-
-            except Exception as e:
-                print(f"[MIGRATE] Error en {tabla}: {e}")
-                pass
-
-        conn.close()
-        return True
-
-    except Exception as e:
-        print(f"[MIGRATE] Error general: {e}")
-        return False
-
-
-def migrate_base_data_to_taller(source_taller_id: str, target_taller_id: str):
-    """
-    Copia datos MAESTROS de un taller a otro (versión con contexto de Flask).
-    Delegará a la versión raw.
-    """
-    try:
-        db_path = DB_PATH
-        return migrate_base_data_to_taller_raw(db_path, source_taller_id, target_taller_id)
-    except Exception as e:
-        print(f"[MIGRATE] Error: {e}")
-        return False
 
 
 def calcular_stock():

@@ -333,24 +333,12 @@ def api_talleres_create():
     data = request.get_json() or {}
     taller_id  = (data.get("id") or "").strip().lower().replace(" ", "_")
     nombre     = (data.get("nombre") or "").strip()
-    source_taller = data.get("source_taller_id") or "rober_lang"  # Taller a copiar datos
-
     if not taller_id or not nombre:
         return jsonify({"ok": False, "error": "id y nombre son requeridos"}), 400
     existing = _data.tfiltered_dict("TALLERES", {"id": taller_id})
     if existing:
         return jsonify({"ok": False, "error": "Ya existe un taller con ese id"}), 409
-
-    # Crear el nuevo taller
     _data.tinsert("TALLERES", {"id": taller_id, "nombre": nombre})
-
-    # Migrar datos base (maestros) desde taller origen
-    try:
-        _data.migrate_base_data_to_taller(source_taller, taller_id)
-    except Exception as e:
-        # Si falla la migración no debe fallar la creación del taller
-        print(f"[WARN] Error migrando datos base: {e}")
-
     return jsonify({"ok": True, "id": taller_id})
 
 
