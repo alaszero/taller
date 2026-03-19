@@ -61,7 +61,7 @@ def _audit(conn, accion, tabla, registro_id, antes=None, despues=None):
 
 def tlist(table):
     """Lista todos los registros de la tabla, filtrados por taller activo.
-    Incluye también filas con taller_id IS NULL para compatibilidad con datos legacy."""
+    Aislamiento estricto: solo devuelve datos del taller actual."""
     conn = get_db()
     tid = _current_taller_id()
     if tid and table not in _CROSS_TALLER_TABLES:
@@ -69,7 +69,7 @@ def tlist(table):
             cols = _db.get_columns(conn, table)
             if "taller_id" in cols:
                 cur = conn.execute(
-                    f'SELECT rowid, * FROM "{table}" WHERE "taller_id"=? OR "taller_id" IS NULL OR "taller_id"=\'\'',
+                    f'SELECT rowid, * FROM "{table}" WHERE "taller_id"=?',
                     (tid,)
                 )
                 return [_db._row_to_dict(r, cols) for r in cur.fetchall()]
@@ -81,7 +81,7 @@ def tlist(table):
 
 def tfiltered(table, **kw):
     """Lista registros filtrados por columna=valor, más filtro de taller activo.
-    Incluye filas con taller_id NULL (datos legacy) cuando se activa el filtro de taller."""
+    Aislamiento estricto: solo devuelve datos del taller actual."""
     conn = get_db()
     tid = _current_taller_id()
     if tid and table not in _CROSS_TALLER_TABLES:
@@ -90,7 +90,7 @@ def tfiltered(table, **kw):
             if "taller_id" in cols:
                 conds = [f'"{k}"=?' for k in kw]
                 params = list(kw.values())
-                conds.append(f'("taller_id"=? OR "taller_id" IS NULL OR "taller_id"=\'\')')
+                conds.append(f'"taller_id"=?')
                 params.append(tid)
                 where = " AND ".join(conds)
                 cur = conn.execute(f'SELECT rowid, * FROM "{table}" WHERE {where}', params)
@@ -252,10 +252,9 @@ def _seed_default_user(conn):
     except Exception:
         pass
 
-    # ── M1: seed TALLERES con datos iniciales ────────────────────────────────
+    # ── M1: seed TALLERES con taller principal ───────────────────────────────
     try:
         conn.execute("INSERT OR IGNORE INTO TALLERES(id,nombre) VALUES('rober_lang','Rober Lang')")
-        conn.execute("INSERT OR IGNORE INTO TALLERES(id,nombre) VALUES('testing','Testing')")
         conn.commit()
     except Exception:
         pass
