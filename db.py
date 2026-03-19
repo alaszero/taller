@@ -7,61 +7,74 @@ import sqlite3
 # ── Schema ─────────────────────────────────────────────────────────────────────
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS MATERIALES (
-    Codigo_mat TEXT, Tipo TEXT, "Descripción" TEXT, Unidad TEXT, Stock_min TEXT
+    Codigo_mat TEXT, Tipo TEXT, "Descripción" TEXT, Unidad TEXT, Stock_min TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS HERRAMIENTAS (
     ID_Herramienta TEXT, Herramienta TEXT, Marca TEXT, Modelo TEXT, Tipo TEXT,
     NS TEXT, Categoria TEXT, "Ubicación_Base" TEXT, Estado TEXT,
-    Responsable_Actual TEXT, Fecha_Alta TEXT, Observaciones TEXT
+    Responsable_Actual TEXT, Fecha_Alta TEXT, Observaciones TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS EMPLEADOS (
     EmpleadoID TEXT, Nombre TEXT, Apellido TEXT, Alias TEXT, Area TEXT,
     Puesto TEXT, Especialidad TEXT, NivelExperiencia TEXT, FechaIngreso TEXT,
     SalarioHora TEXT, CostoHoraReal TEXT, Activo TEXT, SupervisorID TEXT,
-    Observaciones TEXT
+    Observaciones TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS UBICACIONES (
     ID_Ubic TEXT, Zona TEXT, "Descripción" TEXT, Tipo TEXT,
-    Estante TEXT, Nivel TEXT
+    Estante TEXT, Nivel TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS PROVEEDORES (
     ProveedorID TEXT, Nombre TEXT, Telefono TEXT, Email TEXT,
-    RFC TEXT, Contacto TEXT, Categoria TEXT, Observaciones TEXT
+    RFC TEXT, Contacto TEXT, Categoria TEXT, Observaciones TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS PROYECTOS (
     ID_Proyecto TEXT, Cliente TEXT, Nombre_Obra TEXT,
-    Inicio TEXT, Fin TEXT, Encargado TEXT, Estado TEXT
+    Inicio TEXT, Fin TEXT, Encargado TEXT, Estado TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS MUEBLES (
     ID_Mueble TEXT, ID_Proyecto TEXT, Mueble TEXT, Cantidad TEXT,
-    Tipo TEXT, Area TEXT, "Observación" TEXT
+    Tipo TEXT, Area TEXT, "Observación" TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS ORDENES_PRODUCCION (
     ID_OP TEXT, ID_Mueble TEXT, Etapa TEXT, Cantidad TEXT,
     FechaInicioPlaneada TEXT, FechaFinalPlaneada TEXT,
-    FechaInicioReal TEXT, FechaFinalReal TEXT, Responsable TEXT
+    FechaInicioReal TEXT, FechaFinalReal TEXT, Responsable TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS ETAPAS (
-    Etapa TEXT, "Orden" TEXT, Area TEXT
+    Etapa TEXT, "Orden" TEXT, Area TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS MOV_ALMACEN (
     Fecha TEXT, Codigo_mat TEXT, Tipo TEXT, Cantidad TEXT, Unidad TEXT,
     ID_Proyecto TEXT, Mueble TEXT, ID_Trab TEXT,
-    ID_Ubic_Origen TEXT, ID_Ubic_Destino TEXT, Hora TEXT, Folio TEXT
+    ID_Ubic_Origen TEXT, ID_Ubic_Destino TEXT, Hora TEXT, Folio TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS MOV_HERRA (
     ID_Prestamo TEXT, FechaSalida TEXT, ID_Herramienta TEXT, Herramienta TEXT,
     Responsable TEXT, Nombre_Responsable TEXT, Proyecto TEXT,
-    FechaDevolucion TEXT, Hora TEXT, Folio TEXT
+    FechaDevolucion TEXT, Hora TEXT, Folio TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS LOTES (
     LoteID TEXT, MaterialID TEXT, FechaCompra TEXT, FechaCaducidad TEXT,
     CantidadInicial TEXT, CantidadDisponible TEXT, UbicacionID TEXT,
-    CostoUnitario TEXT, ProveedorID TEXT, EstadoLote TEXT
+    CostoUnitario TEXT, ProveedorID TEXT, EstadoLote TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS REG_AVANCE (
     Fecha TEXT, ID_OP TEXT, EmpleadoID TEXT,
-    Etapa TEXT, Estado TEXT, Horas TEXT, Piezas TEXT
+    Etapa TEXT, Estado TEXT, Horas TEXT, Piezas TEXT,
+    taller_id TEXT DEFAULT 'rober_lang'
 );
 CREATE TABLE IF NOT EXISTS USUARIOS (
     username TEXT UNIQUE, password_hash TEXT, nivel TEXT,
@@ -118,6 +131,12 @@ CREATE INDEX IF NOT EXISTS idx_audit_ts       ON AUDIT_LOG(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_taller   ON AUDIT_LOG(taller_id, ts DESC);
 CREATE INDEX IF NOT EXISTS idx_attempts_ip    ON LOGIN_ATTEMPTS(ip, ts DESC);
 CREATE INDEX IF NOT EXISTS idx_alertas_taller ON ALERTAS(taller_id, leida, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_materiales_taller    ON MATERIALES(taller_id);
+CREATE INDEX IF NOT EXISTS idx_herramientas_taller  ON HERRAMIENTAS(taller_id);
+CREATE INDEX IF NOT EXISTS idx_empleados_taller     ON EMPLEADOS(taller_id);
+CREATE INDEX IF NOT EXISTS idx_proyectos_taller     ON PROYECTOS(taller_id);
+CREATE INDEX IF NOT EXISTS idx_mov_almacen_taller   ON MOV_ALMACEN(taller_id);
+CREATE INDEX IF NOT EXISTS idx_mov_herra_taller     ON MOV_HERRA(taller_id);
 """
 
 # ── Tabla → columnas (caché en memoria) ───────────────────────────────────────
