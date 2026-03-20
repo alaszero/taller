@@ -23,18 +23,27 @@ function initDT(selector) {
   });
 }
 
-// ── Toast notifications ──────────────────────────────────────────────────────
+// ── Toast / SweetAlert2 notifications ────────────────────────────────────────
 function showToast(message, type = 'success') {
-  const colors = {
-    success: '#198754',
-    danger:  '#dc3545',
-    warning: '#e0a800',
-    info:    '#0d6efd',
-  };
+  // Errores y warnings → SweetAlert2 (visible, requiere atención)
+  if (type === 'danger' || type === 'warning') {
+    const swalIcon = type === 'danger' ? 'error' : 'warning';
+    const swalTitle = type === 'danger' ? 'Error' : 'Atención';
+    const btnColor = type === 'danger' ? '#ef4444' : '#f59e0b';
+    Swal.fire({
+      icon: swalIcon,
+      title: swalTitle,
+      text: message,
+      confirmButtonColor: btnColor,
+      confirmButtonText: 'Entendido',
+    });
+    return;
+  }
+
+  // Success e info → Bootstrap Toast (pequeño, no-intrusivo)
+  const colors = { success: '#198754', info: '#0d6efd' };
   const id = 'toast_' + Date.now();
-  const icon = type === 'success' ? 'check-circle' :
-               type === 'danger'  ? 'x-circle' :
-               type === 'warning' ? 'exclamation-triangle' : 'info-circle';
+  const icon = type === 'success' ? 'check-circle' : 'info-circle';
   const html = `
     <div id="${id}" class="toast align-items-center border-0 text-white"
          style="background:${colors[type]||colors.info}" role="alert" aria-live="assertive">
@@ -52,6 +61,28 @@ function showToast(message, type = 'success') {
   el.addEventListener('hidden.bs.toast', () => el.remove());
 }
 
+// ── SweetAlert2 utilidades ──────────────────────────────────────────────────
+function showError(title, text) {
+  Swal.fire({ icon: 'error', title, text, confirmButtonColor: '#ef4444', confirmButtonText: 'Entendido' });
+}
+
+function showSuccess(title, text) {
+  Swal.fire({ icon: 'success', title, text, confirmButtonColor: '#22c55e', timer: 2000, showConfirmButton: false });
+}
+
+function showConfirm(title, text) {
+  return Swal.fire({
+    icon: 'warning',
+    title,
+    text,
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    cancelButtonColor: '#6b7280',
+    confirmButtonText: 'Confirmar',
+    cancelButtonText: 'Cancelar',
+  });
+}
+
 // ── Select helper ────────────────────────────────────────────────────────────
 function poblarSelect(selectId, items, valueKey, labelFn, blankLabel = '— Seleccionar —') {
   const el = document.getElementById(selectId);
@@ -67,22 +98,39 @@ function poblarSelect(selectId, items, valueKey, labelFn, blankLabel = '— Sele
 
 // ── Fetch helpers ────────────────────────────────────────────────────────────
 async function apiGet(endpoint) {
-  const r = await fetch(endpoint);
-  if (!r.ok) throw new Error(`Error ${r.status} en ${endpoint}`);
-  return r.json();
+  try {
+    const r = await fetch(endpoint);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Error ${r.status}`);
+    }
+    return r.json();
+  } catch (e) {
+    if (e.name === 'TypeError') {
+      showError('Sin conexión', 'No se pudo conectar con el servidor. Verifica tu conexión.');
+    }
+    throw e;
+  }
 }
 
 async function apiPost(endpoint, data) {
-  const r = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}));
-    throw new Error(err.message || `Error ${r.status}`);
+  try {
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Error ${r.status}`);
+    }
+    return r.json();
+  } catch (e) {
+    if (e.name === 'TypeError') {
+      showError('Sin conexión', 'No se pudo conectar con el servidor. Verifica tu conexión.');
+    }
+    throw e;
   }
-  return r.json();
 }
 
 // ── Fecha hoy YYYY-MM-DD ─────────────────────────────────────────────────────

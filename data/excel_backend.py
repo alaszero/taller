@@ -14,7 +14,7 @@ from flask import abort, session
 from werkzeug.security import generate_password_hash
 
 import db as _db
-from core.config import DEFAULT_SECCIONES
+from core.config import DEFAULT_SECCIONES, _CROSS_TALLER_TABLES
 from core.helpers import safe_float
 
 # ── Directorios ──────────────────────────────────────────────────────────────
@@ -43,6 +43,14 @@ _TABLE_MAP = {
 # Tablas que viven en users.db (SQLite), no en Excel
 _SQLITE_TABLES = {"USUARIOS", "TALLERES", "AUDIT_LOG", "LOGIN_ATTEMPTS",
                   "DASHBOARD_CACHE", "ALERTAS", "ALERT_RULES"}
+
+
+# ── Taller activo ─────────────────────────────────────────────────────────────
+
+def _current_taller_id():
+    """Devuelve el taller_id de la sesión activa, o None si es vista global."""
+    tid = session.get("taller_id", "rober_lang")
+    return None if tid == "__all__" else tid
 
 
 # ── Helpers Excel ────────────────────────────────────────────────────────────
@@ -185,6 +193,12 @@ def _ensure_users_db():
         conn.commit()
     except Exception:
         pass
+    # Seed taller principal
+    try:
+        conn.execute("INSERT OR IGNORE INTO TALLERES(id, nombre) VALUES('rober_lang', 'Rober Lang')")
+        conn.commit()
+    except Exception:
+        pass
     # Seed admin
     _db._col_cache.clear()
     rows = _db.table_to_list(conn, "USUARIOS")
@@ -208,7 +222,8 @@ def get_db():
 
 
 def tlist(table):
-    """Lista todos los registros de una tabla."""
+    """Lista todos los registros de una tabla, filtrados por taller activo.
+    Aislamiento estricto: solo devuelve datos del taller actual."""
     if table in _SQLITE_TABLES:
         conn = _users_conn()
         rows = _db.table_to_list(conn, table)
@@ -219,7 +234,12 @@ def tlist(table):
     fp_fn, sheet = _TABLE_MAP[table]
     try:
         df = _read_sheet(fp_fn(), sheet)
-        return _df_to_list(df)
+        rows = _df_to_list(df)
+        # Filtrar por taller activo (aislamiento estricto)
+        tid = _current_taller_id()
+        if tid and table not in _CROSS_TALLER_TABLES and "taller_id" in df.columns:
+            rows = [r for r in rows if r.get("taller_id") == tid]
+        return rows
     except Exception:
         return []
 
@@ -242,7 +262,7 @@ def tfiltered_dict(table, filters):
 
 
 def tinsert(table, data):
-    """Inserta una fila."""
+    """Inserta una fila, inyectando taller_id del taller activo."""
     if table in _SQLITE_TABLES:
         conn = _users_conn()
         _db.insert_row(conn, table, data)
@@ -250,13 +270,19 @@ def tinsert(table, data):
         return
     if table not in _TABLE_MAP:
         return
+    # Inyectar taller_id si no viene en data
+    if table not in _CROSS_TALLER_TABLES and "taller_id" not in data:
+        tid = _current_taller_id()
+        data["taller_id"] = tid or "rober_lang"
     fp_fn, sheet = _TABLE_MAP[table]
     filepath = fp_fn()
-    # Asegurar columnas Hora/Folio en tablas de movimientos
+    # Asegurar columnas necesarias
     if table == "MOV_ALMACEN":
-        _ensure_columns(filepath, sheet, ["Hora", "Folio"])
+        _ensure_columns(filepath, sheet, ["Hora", "Folio", "taller_id"])
     elif table == "MOV_HERRA":
-        _ensure_columns(filepath, sheet, ["Hora", "Folio"])
+        _ensure_columns(filepath, sheet, ["Hora", "Folio", "taller_id"])
+    else:
+        _ensure_columns(filepath, sheet, ["taller_id"])
     _append_row(filepath, sheet, data)
 
 

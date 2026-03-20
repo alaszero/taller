@@ -142,7 +142,7 @@ let _dashAlertas  = [];
 let _dashProgreso = [];
 
 function imprimirAlertasStock() {
-  if (!_dashAlertas.length) return alert('No hay alertas de stock en este momento.');
+  if (!_dashAlertas.length) return Swal.fire({icon:'info', title:'Sin alertas', text:'No hay alertas de stock en este momento.', confirmButtonColor:'#0d6efd'});
   const today = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
   const sinStock  = _dashAlertas.filter(a => a.Nivel === 'danger');
   const bajoMin   = _dashAlertas.filter(a => a.Nivel === 'warning');
@@ -345,7 +345,7 @@ fetch('/api/dashboard').then(r => r.json()).then(d => {
 
 // ── Imprimir resumen de progreso de obras ──────────────────────────────────
 function imprimirProgresoObras() {
-  if (!_dashProgreso.length) return alert('No hay obras activas para imprimir.');
+  if (!_dashProgreso.length) return Swal.fire({icon:'info', title:'Sin datos', text:'No hay obras activas para imprimir.', confirmButtonColor:'#0d6efd'});
 
   const now    = new Date();
   const fecha  = now.toLocaleDateString('es-MX', {weekday:'long', year:'numeric', month:'long', day:'numeric'});

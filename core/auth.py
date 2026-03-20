@@ -111,6 +111,8 @@ def refresh_session():
 
 def forbidden(e):
     """Página amigable para acceso denegado."""
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": "Acceso denegado"}), 403
     return render_template_string('''
     {% extends "base.html" %}
     {% block titulo %}Acceso Denegado{% endblock %}
@@ -124,6 +126,42 @@ def forbidden(e):
     </div>
     {% endblock %}
     '''), 403
+
+
+def not_found(e):
+    """Página amigable para recurso no encontrado."""
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": "Recurso no encontrado"}), 404
+    return render_template_string('''
+    {% extends "base.html" %}
+    {% block titulo %}No Encontrado{% endblock %}
+    {% block contenido %}
+    <div class="text-center py-5">
+      <i class="bi bi-question-circle" style="font-size:64px;color:#f59e0b;"></i>
+      <h3 class="mt-3">Página no encontrada</h3>
+      <p class="text-muted">La página que buscas no existe o fue movida.</p>
+      <a href="/" class="btn btn-primary mt-2"><i class="bi bi-house me-1"></i>Ir al inicio</a>
+    </div>
+    {% endblock %}
+    '''), 404
+
+
+def internal_error(e):
+    """Página amigable para errores internos del servidor."""
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": "Error interno del servidor"}), 500
+    return render_template_string('''
+    {% extends "base.html" %}
+    {% block titulo %}Error del Servidor{% endblock %}
+    {% block contenido %}
+    <div class="text-center py-5">
+      <i class="bi bi-exclamation-triangle" style="font-size:64px;color:#dc3545;"></i>
+      <h3 class="mt-3">Error del Servidor</h3>
+      <p class="text-muted">Ocurrió un error inesperado. Intenta de nuevo o contacta al administrador.</p>
+      <a href="/" class="btn btn-primary mt-2"><i class="bi bi-house me-1"></i>Ir al inicio</a>
+    </div>
+    {% endblock %}
+    '''), 500
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -233,3 +271,5 @@ def init_app(app, get_db_func):
     app.context_processor(make_inject_user(get_db_func))
     app.before_request(refresh_session)
     app.errorhandler(403)(forbidden)
+    app.errorhandler(404)(not_found)
+    app.errorhandler(500)(internal_error)
