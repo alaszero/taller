@@ -110,9 +110,11 @@ dar seguimiento a proyectos y órdenes de producción, y registrar el avance dia
 
 <h4>Tecnología</h4>
 <ul>
-  <li>Backend: <strong>Python + Flask</strong></li>
-  <li>Base de datos: <strong>Archivos Excel (.xlsx)</strong> — no se requiere servidor de base de datos</li>
+  <li>Backend: <strong>Python + Flask</strong> (arquitectura modular con Blueprints)</li>
+  <li>Base de datos local: <strong>Archivos Excel (.xlsx)</strong> — no se requiere servidor de base de datos</li>
+  <li>Base de datos producción: <strong>SQLite</strong> (<code>taller.db</code>) — multi-tenant con aislamiento por taller</li>
   <li>Interfaz: navegador web (Chrome, Edge, Firefox)</li>
+  <li>Notificaciones: <strong>SweetAlert2</strong> para errores y advertencias, Bootstrap Toast para éxitos</li>
 </ul>
 
 {sub('requisitos', '1.1 Requisitos para ejecutar')}
@@ -132,38 +134,54 @@ dar seguimiento a proyectos y órdenes de producción, y registrar el avance dia
 <div class="step"><div class="step-num">3</div>
 <div class="step-body"><strong>Abrir el navegador</strong> en <code>http://localhost:5000</code></div></div>
 <div class="step"><div class="step-num">4</div>
-<div class="step-body"><strong>Ingresar usuario y contraseña</strong> cuando el navegador lo solicite.<br>
+<div class="step-body"><strong>Ingresar usuario y contraseña</strong> en la pantalla de login.<br>
 Por defecto: usuario <code>admin</code> · contraseña <code>taller2024</code>.<br>
-Se pueden cambiar con variables de entorno antes de iniciar: <code>set TALLER_USER=miusuario</code> y <code>set TALLER_PASS=micontraseña</code>.</div></div>
+Los usuarios se administran desde <strong>Administración → Gestión de Usuarios</strong>.</div></div>
 {tip('El servidor escucha en todas las interfaces de red (<code>0.0.0.0:5000</code>), por lo que es accesible desde cualquier dispositivo en la misma red Wi-Fi o LAN. Ve a <strong>Administración → Configuración de Red</strong> para ver la dirección IP de acceso.')}
+{warn('El sistema bloquea el acceso tras <strong>5 intentos fallidos de login</strong> desde la misma IP durante 10 minutos. Esto protege contra ataques de fuerza bruta.')}
 
 {sub('estructura', '1.3 Estructura de archivos')}
 <pre>
 D:\\Proyectos\\
-├── app.py                    ← Servidor Flask (punto de entrada)
+├── app.py                    ← Servidor local (Excel backend)
+├── app_web.py                ← Servidor producción (SQLite backend)
+├── db.py                     ← Capa de datos SQLite
+├── excel_backend.py          ← Capa de datos Excel
 ├── generar_manual.py         ← Genera este manual
+├── VERSION                   ← Versión actual del sistema
+├── blueprints/               ← Módulos Flask (rutas y API)
+│   ├── admin.py              ← Administración, usuarios, talleres
+│   ├── almacen.py            ← Almacén y movimientos
+│   ├── avance.py             ← Avance de obras y dashboard
+│   ├── dashboard.py          ← Dashboard principal
+│   ├── empleados.py          ← Gestión de empleados
+│   ├── herramientas.py       ← Herramientas y préstamos
+│   ├── proyectos.py          ← Proyectos, muebles y OPs
+│   ├── network.py            ← Configuración de red (producción)
+│   ├── network_local.py      ← Configuración de red (local)
+│   └── shared_api.py         ← API compartida (códigos, tablas)
+├── core/                     ← Lógica central
+│   └── auth.py               ← Autenticación, roles y permisos
 ├── static/
 │   ├── css/style.css         ← Estilos personalizados
-│   └── js/main.js            ← JavaScript compartido
+│   └── js/main.js            ← JavaScript compartido (Toast, SweetAlert2, DataTables)
 ├── templates/                ← Páginas HTML
-│   ├── base.html             ← Plantilla base (sidebar, topbar)
-│   ├── dashboard.html
-│   ├── almacen.html
-│   ├── herramientas.html
-│   ├── proyectos.html
-│   ├── avance.html
-│   ├── avance_dashboard.html
-│   ├── empleados.html
-│   ├── implementacion.html
-│   └── admin.html
-├── CAT/                      ← Catálogos (datos maestros)
+│   ├── base.html             ← Plantilla base (sidebar, topbar, alertas)
+│   ├── partials/             ← Componentes reutilizables
+│   │   ├── _sidebar_nav.html ← Navegación lateral
+│   │   ├── _admin_*.html     ← Cards de administración
+│   │   ├── _almacen_*.html   ← Componentes de almacén
+│   │   ├── _herramientas_*.html
+│   │   └── _proyectos_*.html
+│   └── *.html                ← Páginas principales
+├── CAT/                      ← Catálogos Excel (versión local)
 │   ├── Materiales.xlsx
 │   ├── Herramientas.xlsx
 │   ├── Empleados.xlsx
 │   ├── Ubicaciones.xlsx
 │   ├── Proveedores.xlsx
 │   └── Proyectos.xlsx        ← También contiene Muebles, OPs, Etapas
-└── REG/                      ← Registros transaccionales
+└── REG/                      ← Registros Excel (versión local)
     ├── RegistroMovMaterial.xlsx
     ├── RegistroMovHerramienta.xlsx
     ├── RegAvance.xlsx
@@ -174,7 +192,8 @@ D:\\Proyectos\\
 
 <!-- ══════════════════════════════ MÓDULOS ══════════════════════════════ -->
 {sec('dashboard', '2. Dashboard')}
-<p>Pantalla de inicio que muestra un resumen ejecutivo del estado del taller en tiempo real.</p>
+<p>Pantalla de inicio que muestra un resumen ejecutivo del estado del taller en tiempo real.
+Los datos se actualizan automáticamente con un <strong>cache de 5 minutos</strong> para optimizar el rendimiento.</p>
 
 {sub('kpis', '2.1 Indicadores (KPIs)')}
 <table>
@@ -183,6 +202,7 @@ D:\\Proyectos\\
   <tr><td>{badge('Herramientas Prestadas','yellow')}</td><td>Herramientas actualmente fuera del almacén</td></tr>
   <tr><td>{badge('Proyectos Activos','blue')}</td><td>Proyectos con estado "En proceso"</td></tr>
   <tr><td>{badge('Registros Hoy','green')}</td><td>Registros de avance capturados en el día</td></tr>
+  <tr><td>{badge('Alertas Activas','red')}</td><td>Alertas automáticas del sistema (stock bajo, obras detenidas)</td></tr>
 </table>
 
 {sub('dash-alertas', '2.2 Tabla de alertas de stock')}
@@ -196,6 +216,16 @@ D:\\Proyectos\\
 {sub('dash-progreso', '2.3 Progreso de obras')}
 <p>Tarjetas de progreso por proyecto activo. El porcentaje representa OPs que tienen al menos
 un registro de avance respecto al total de OPs del proyecto.</p>
+
+{sub('dash-bell', '2.4 Campana de alertas')}
+<p>En la barra superior aparece un ícono de campana 🔔 con un contador de alertas no leídas.
+Al hacer clic, se navega a <strong>Administración → Alertas del Sistema</strong>. Las alertas se generan
+automáticamente al cargar el dashboard:</p>
+<ul>
+  <li><strong>Stock bajo</strong>: materiales con stock mínimo configurado y stock actual en 0</li>
+  <li><strong>Obra detenida</strong>: proyectos activos sin registros de avance en los últimos 5 días</li>
+</ul>
+<p>Las alertas se deduplicen: no se genera una nueva si ya existe una idéntica con menos de 24 horas de antigüedad.</p>
 
 <hr class="section-divider">
 
@@ -215,8 +245,8 @@ a partir de todos los movimientos registrados: <code>Stock = Σ Entradas − Σ 
 
 {sub('movimientos', '3.2 Registrar Movimiento')}
 <p>Para registrar un movimiento de almacén:</p>
-{step(1,'Clic en "Nuevo movimiento"','Abre el modal de registro.')}
-{step(2,'Selecciona el Tipo','<b>Entrada</b>: material que entra al almacén (compra, donación).<br><b>Salida</b>: material que sale para un proyecto.<br><b>Traslado</b>: cambio de ubicación dentro del almacén.')}
+{step(1,'Clic en "Registrar movimiento"','Se abre un modal previo con 3 botones grandes para seleccionar el tipo de movimiento.')}
+{step(2,'Selecciona el Tipo','<b>Entrada</b>: material que entra al almacén (compra, donación).<br><b>Salida</b>: material que sale para un proyecto.<br><b>Traslado</b>: cambio de ubicación dentro del almacén.<br>El tipo seleccionado se guarda y el formulario se abre pre-configurado con los campos correctos.')}
 {step(3,'Busca el material','Escribe el nombre o código para filtrar con el autocomplete.')}
 {step(4,'Ingresa la cantidad','Para unidades enteras (pza, pie) no se permiten decimales.<br>Para unidades continuas (kg, lt, m) sí se permiten.')}
 {step(5,'Completa los demás campos','Proyecto, mueble, responsable, ubicación de origen/destino.')}
@@ -501,6 +531,141 @@ todos los archivos Excel del sistema, con la siguiente estructura:</p>
 {step(5,'Detén el túnel','Cuando ya no necesites acceso externo, clic en "Detener" para cerrar el túnel.')}
 {warn('La URL del túnel cambia cada vez que se inicia. No es permanente. Para URLs fijas se requiere una cuenta de Cloudflare.')}
 
+{sub('usuarios', '9.5 Gestión de Usuarios')}
+<p>Permite crear, editar y eliminar usuarios del sistema. Accesible solo para usuarios con nivel
+<strong>yekflow</strong> o <strong>superusuario</strong>.</p>
+
+<h4>Niveles de acceso</h4>
+<table>
+  <tr><th>Nivel</th><th>Descripción</th></tr>
+  <tr><td>{badge('yekflow','blue')}</td><td>Acceso total al sistema, incluyendo gestión de talleres y auditoría. Puede ver datos de todos los talleres.</td></tr>
+  <tr><td>{badge('superusuario','green')}</td><td>Acceso completo dentro de su taller asignado. Puede gestionar usuarios y ver auditoría.</td></tr>
+  <tr><td>{badge('administrador','yellow')}</td><td>Acceso a las secciones asignadas por el superusuario.</td></tr>
+  <tr><td>{badge('supervisor','gray')}</td><td>Acceso limitado a secciones operativas asignadas.</td></tr>
+  <tr><td>{badge('usuario','gray')}</td><td>Acceso básico de solo lectura o captura en secciones permitidas.</td></tr>
+</table>
+
+<h4>Permisos por sección</h4>
+<p>Cada usuario tiene un campo <strong>secciones</strong> que controla a qué módulos puede acceder.
+Las secciones disponibles son:</p>
+<table>
+  <tr><th>Sección</th><th>Módulo</th></tr>
+  <tr><td><code>dashboard</code></td><td>Dashboard principal</td></tr>
+  <tr><td><code>almacen</code></td><td>Almacén (stock, movimientos, catálogo, ubicaciones)</td></tr>
+  <tr><td><code>herramientas</code></td><td>Herramientas (préstamos, catálogo)</td></tr>
+  <tr><td><code>proyectos</code></td><td>Proyectos, muebles y órdenes de producción</td></tr>
+  <tr><td><code>avance</code></td><td>Registro y visualización de avance</td></tr>
+  <tr><td><code>empleados</code></td><td>Catálogo de empleados</td></tr>
+  <tr><td><code>implementacion</code></td><td>Formularios de implementación</td></tr>
+  <tr><td><code>admin</code></td><td>Panel de administración</td></tr>
+</table>
+{tip('Los usuarios con nivel <strong>yekflow</strong> tienen acceso a todas las secciones sin importar el campo de permisos.')}
+
+<h4>Crear un usuario</h4>
+{step(1,'Clic en "Nuevo usuario"','Se abre un modal con el formulario.')}
+{step(2,'Completa los campos','Username (único), contraseña, nombre, nivel de acceso y secciones permitidas.')}
+{step(3,'Guardar','El usuario queda activo inmediatamente.')}
+
+{sub('talleres', '9.6 Gestión de Talleres (Multi-Tenant)')}
+<p>El sistema soporta <strong>múltiples talleres</strong> (multi-tenant). Cada taller tiene sus propios
+datos completamente aislados: materiales, herramientas, empleados, proyectos, movimientos, etc.</p>
+{danger('Los datos entre talleres están <strong>estrictamente aislados</strong>. Un usuario de un taller no puede ver ni modificar datos de otro taller.')}
+
+<h4>Panel de talleres</h4>
+<p>Visible solo para usuarios con nivel <strong>yekflow</strong>. Permite:</p>
+<ul>
+  <li><strong>Ver</strong> todos los talleres registrados con su estado (activo/inactivo)</li>
+  <li><strong>Crear</strong> nuevos talleres con un ID único y nombre</li>
+  <li><strong>Activar/Desactivar</strong> talleres existentes</li>
+</ul>
+
+<h4>Selector de taller</h4>
+<p>Los usuarios <strong>yekflow</strong> ven un selector de taller en la barra superior y en el sidebar.
+Esto permite cambiar el contexto de trabajo entre talleres sin cerrar sesión.</p>
+<table>
+  <tr><th>Opción</th><th>Descripción</th></tr>
+  <tr><td><code>Todos los talleres</code></td><td>Vista global — muestra datos consolidados de todos los talleres</td></tr>
+  <tr><td><code>Taller específico</code></td><td>Filtra todos los datos para mostrar solo los de ese taller</td></tr>
+</table>
+{warn('Los usuarios regulares solo ven los datos de su taller asignado. No pueden cambiar de contexto.')}
+
+{sub('auditoria', '9.7 Auditoría del Sistema')}
+<p>Registro automático de todas las acciones críticas realizadas en el sistema. Visible para
+usuarios <strong>yekflow</strong> y <strong>superusuario</strong>.</p>
+
+<h4>¿Qué se registra?</h4>
+<ul>
+  <li>Creación, edición y eliminación de registros en cualquier tabla</li>
+  <li>Cambios en usuarios y configuración</li>
+  <li>Operaciones de backup y restauración</li>
+  <li>Borrado de datos</li>
+</ul>
+
+<h4>Campos del registro de auditoría</h4>
+<table>
+  <tr><th>Campo</th><th>Descripción</th></tr>
+  <tr><td>Fecha/hora</td><td>Timestamp exacto de la acción</td></tr>
+  <tr><td>Usuario</td><td>Quién realizó la acción</td></tr>
+  <tr><td>Taller</td><td>En qué taller se realizó</td></tr>
+  <tr><td>Tabla</td><td>Qué tabla fue afectada</td></tr>
+  <tr><td>Acción</td><td>Tipo de operación (INSERT, UPDATE, DELETE)</td></tr>
+  <tr><td>Detalle</td><td>Datos específicos del cambio</td></tr>
+</table>
+
+<h4>Filtros de auditoría</h4>
+<p>La tabla de auditoría incluye filtros por taller, tabla, usuario y rango de fechas para
+facilitar la búsqueda de acciones específicas.</p>
+{tip('Usa la auditoría para rastrear quién hizo qué y cuándo. Es invaluable para resolver discrepancias en datos.')}
+
+{sub('alertas-sistema', '9.8 Alertas del Sistema')}
+<p>Sistema de alertas automáticas que detecta condiciones críticas en el taller.</p>
+
+<h4>Tipos de alerta</h4>
+<table>
+  <tr><th>Tipo</th><th>Condición</th><th>Descripción</th></tr>
+  <tr><td>{badge('Stock bajo','red')}</td><td>Stock actual = 0 y stock mínimo > 0</td><td>Material agotado que tiene un mínimo configurado</td></tr>
+  <tr><td>{badge('Obra detenida','yellow')}</td><td>Proyecto activo sin avance en 5+ días</td><td>Proyecto "En proceso" sin registros de avance recientes</td></tr>
+</table>
+
+<h4>Gestión de alertas</h4>
+<ul>
+  <li>Las alertas aparecen en la campana 🔔 de la barra superior con un contador</li>
+  <li>La tarjeta <strong>Alertas del Sistema</strong> en Administración muestra todas las alertas no leídas</li>
+  <li>Botón <strong>Marcar todas leídas</strong> para limpiar las alertas revisadas</li>
+  <li>Las alertas se deduplicen automáticamente (no se genera una nueva si ya existe una idéntica con menos de 24 horas)</li>
+</ul>
+
+{sub('seguridad', '9.9 Seguridad')}
+<p>Medidas de seguridad implementadas en el sistema:</p>
+
+<h4>Protección contra fuerza bruta</h4>
+<p>El sistema registra los intentos fallidos de login por dirección IP. Si se detectan
+<strong>5 o más intentos fallidos en 10 minutos</strong>, el acceso desde esa IP se bloquea
+temporalmente con un mensaje de error.</p>
+
+<h4>Sesiones con timeout</h4>
+<p>Las sesiones tienen un timeout configurable (por defecto <strong>30 minutos</strong> de inactividad).
+El sistema muestra un aviso <strong>2 minutos antes</strong> de que la sesión expire, dando la oportunidad
+de continuar trabajando. Si el tiempo expira, el usuario es redirigido automáticamente al login.</p>
+
+<h4>Contraseñas seguras</h4>
+<p>Las contraseñas se almacenan con <strong>hash seguro</strong> (Werkzeug/PBKDF2). Nunca se guardan
+en texto plano. Ni siquiera el administrador puede ver la contraseña de otro usuario.</p>
+
+<h4>Notificaciones de error mejoradas</h4>
+<p>Los errores y advertencias del sistema se muestran con <strong>SweetAlert2</strong> — modales
+visibles que requieren la atención del usuario. Las operaciones exitosas se muestran con
+notificaciones pequeñas no intrusivas (Toast) que desaparecen automáticamente.</p>
+
+<h4>Páginas de error</h4>
+<table>
+  <tr><th>Código</th><th>Descripción</th></tr>
+  <tr><td>403</td><td>Acceso denegado — el usuario no tiene permisos para esa sección</td></tr>
+  <tr><td>404</td><td>Página no encontrada — la URL solicitada no existe</td></tr>
+  <tr><td>500</td><td>Error del servidor — error inesperado en el backend</td></tr>
+</table>
+<p>Para endpoints de API (<code>/api/...</code>), los errores devuelven JSON estructurado en lugar de páginas HTML.</p>
+
 <hr class="section-divider">
 
 <!-- ══════════════════════════════ SERVIDOR Y PRODUCCIÓN ══════════════════════════════ -->
@@ -601,7 +766,10 @@ sudo bash instalar_actualizador.sh</pre>
   <tr><td>Permisos</td><td>Sin restricciones por sección</td><td>Permisos modulares por sección (campo <code>secciones</code> por usuario)</td></tr>
   <tr><td>Sesiones</td><td>Básicas (sin expiración)</td><td>Con timeout configurable (default 30 min) y aviso al usuario</td></tr>
   <tr><td>Acceso</td><td><code>http://localhost:5000</code></td><td><code>https://yekflow.com</code> vía Cloudflare Tunnel</td></tr>
+  <tr><td>Multi-tenant</td><td>Datos aislados por <code>taller_id</code> en Excel</td><td>Datos aislados por <code>taller_id</code> en SQLite, con índices optimizados</td></tr>
   <tr><td>Concurrencia</td><td>No recomendada (Excel no soporta escritura simultánea)</td><td>SQLite soporta lecturas simultáneas; escrituras se serializan</td></tr>
+  <tr><td>Alertas</td><td>Calculadas al cargar Dashboard</td><td>Persistidas en tabla ALERTAS con deduplicación de 24h</td></tr>
+  <tr><td>Auditoría</td><td>Tabla AUDIT_LOG compartida</td><td>Tabla AUDIT_LOG filtrada por taller</td></tr>
   <tr><td>Inicio</td><td>Manual (<code>python app.py</code>)</td><td>Automático vía <code>systemd</code> al encender la PC</td></tr>
 </table>
 
@@ -653,8 +821,17 @@ PC Windows (desarrollo)               PC Ubuntu (servidor 24/7)
   <tr><td>KPI</td><td>Key Performance Indicator — indicador clave en el Dashboard</td></tr>
   <tr><td>Etapa</td><td>Fase de producción de un mueble (Corte, Armado, Laqueado, etc.)</td></tr>
   <tr><td>Préstamo activo</td><td>Herramienta fuera del almacén sin fecha de devolución registrada</td></tr>
-  <tr><td>CAT/</td><td>Carpeta de catálogos (datos maestros del sistema)</td></tr>
-  <tr><td>REG/</td><td>Carpeta de registros transaccionales (movimientos, avances, préstamos)</td></tr>
+  <tr><td>Multi-tenant</td><td>Arquitectura que permite que múltiples talleres usen el mismo sistema con datos aislados</td></tr>
+  <tr><td>Taller</td><td>Unidad organizativa independiente. Cada taller tiene sus propios datos</td></tr>
+  <tr><td>Auditoría</td><td>Registro automático de todas las acciones realizadas en el sistema</td></tr>
+  <tr><td>Alerta</td><td>Notificación automática generada por condiciones críticas (stock bajo, obra detenida)</td></tr>
+  <tr><td>Blueprint</td><td>Módulo de Flask que agrupa rutas y lógica relacionada</td></tr>
+  <tr><td>SweetAlert2</td><td>Librería de modales para mostrar errores y advertencias de forma visible</td></tr>
+  <tr><td>Toast</td><td>Notificación pequeña no intrusiva que aparece brevemente y desaparece automáticamente</td></tr>
+  <tr><td>Brute force</td><td>Ataque por fuerza bruta — intentos masivos de adivinar contraseñas</td></tr>
+  <tr><td>CAT/</td><td>Carpeta de catálogos (datos maestros del sistema, versión local)</td></tr>
+  <tr><td>REG/</td><td>Carpeta de registros transaccionales (versión local)</td></tr>
+  <tr><td>taller.db</td><td>Base de datos SQLite del servidor de producción</td></tr>
 </table>
 
 <hr class="section-divider">
@@ -715,6 +892,31 @@ mantén la autenticación encendida para proteger el acceso.</p>
 que quieres modificar, escribe la nueva contraseña y guarda. Los valores por defecto del usuario
 administrador son <code>admin</code> / <code>taller2024</code>.</p>
 
+<h4>¿Cómo creo un nuevo taller?</h4>
+<p>Ve a <strong>Administración → Gestión de Talleres</strong> (solo visible para usuarios yekflow).
+Ingresa un ID único (ej: <code>mi_taller</code>) y un nombre descriptivo. El taller se crea vacío
+y listo para empezar a cargar datos.</p>
+
+<h4>¿Los datos de un taller se mezclan con los de otro?</h4>
+<p>No. Cada taller tiene sus datos completamente aislados. Los materiales, herramientas, empleados,
+proyectos y movimientos de un taller son invisibles para los demás. Solo los usuarios yekflow
+pueden ver datos de todos los talleres seleccionando "Todos los talleres" en el selector.</p>
+
+<h4>¿Qué significan los modales rojos/amarillos que aparecen?</h4>
+<p>El sistema usa <strong>SweetAlert2</strong> para mostrar errores (modal rojo) y advertencias
+(modal amarillo) de forma visible. A diferencia de las notificaciones verdes que desaparecen solas,
+estos modales requieren que hagas clic en "Entendido" para cerrarse. Esto asegura que no pases
+por alto un error importante.</p>
+
+<h4>¿Me bloquearon el acceso, qué hago?</h4>
+<p>Si ves el mensaje "Espera 10 minutos", el sistema detectó demasiados intentos fallidos de
+login desde tu IP (5 intentos en 10 minutos). Espera 10 minutos y vuelve a intentar con
+las credenciales correctas. Si olvidaste tu contraseña, pide a un administrador que la restablezca.</p>
+
+<h4>¿Dónde veo quién hizo cambios en el sistema?</h4>
+<p>En <strong>Administración → Auditoría</strong>. Ahí puedes filtrar por usuario, tabla, taller
+y rango de fechas para encontrar quién modificó qué y cuándo.</p>
+
 <h4>¿Cómo actualizo el sistema en producción (servidor)?</h4>
 <p>Ve a la sección <strong>10. Servidor y Producción</strong> de este manual. En resumen: genera el
 paquete ZIP desde Administración, cópialo al servidor Ubuntu y ejecuta
@@ -736,6 +938,10 @@ TOC_ITEMS = [
     ("inicio", "1.2 Iniciar el sistema", "h3"),
     ("estructura", "1.3 Estructura de archivos", "h3"),
     ("dashboard", "2. Dashboard", "h2"),
+    ("kpis", "2.1 Indicadores (KPIs)", "h3"),
+    ("dash-alertas", "2.2 Alertas de stock", "h3"),
+    ("dash-progreso", "2.3 Progreso de obras", "h3"),
+    ("dash-bell", "2.4 Campana de alertas", "h3"),
     ("almacen", "3. Almacén", "h2"),
     ("stock", "3.1 Stock Actual", "h3"),
     ("movimientos", "3.2 Registrar Movimiento", "h3"),
@@ -765,6 +971,11 @@ TOC_ITEMS = [
     ("backup", "9.2 Respaldo / Restauración", "h3"),
     ("editor-bd", "9.3 Editor de Base de Datos", "h3"),
     ("red", "9.4 Configuración de Red", "h3"),
+    ("usuarios", "9.5 Gestión de Usuarios", "h3"),
+    ("talleres", "9.6 Gestión de Talleres", "h3"),
+    ("auditoria", "9.7 Auditoría", "h3"),
+    ("alertas-sistema", "9.8 Alertas del Sistema", "h3"),
+    ("seguridad", "9.9 Seguridad", "h3"),
     ("servidor", "10. Servidor y Producción", "h2"),
     ("flujo-deploy", "10.1 Flujo de actualización", "h3"),
     ("comandos-servidor", "10.2 Comandos del servidor", "h3"),
