@@ -127,7 +127,11 @@
 <script>
 // ── Gestión de Usuarios ────────────────────────────────────────────────────────
 
-const _modalUsuario = new bootstrap.Modal(document.getElementById('modalUsuario'));
+let _modalUsuario = null;
+function getModalUsuario() {
+  if (!_modalUsuario) _modalUsuario = new bootstrap.Modal(document.getElementById('modalUsuario'));
+  return _modalUsuario;
+}
 
 // Secciones por defecto según nivel (debe coincidir con DEFAULT_SECCIONES del backend)
 const DEFAULT_SECCIONES = {
@@ -218,7 +222,7 @@ function abrirModalUsuario() {
   document.getElementById('usr_activo_wrap').style.display = 'none';
   document.getElementById('usr_error').classList.add('d-none');
   onNivelChange();  // Auto-popular checkboxes según nivel por defecto
-  _modalUsuario.show();
+  getModalUsuario().show();
 }
 
 function editarUsuario(username, nombre, nivel, activo, secciones) {
@@ -240,7 +244,7 @@ function editarUsuario(username, nombre, nivel, activo, secciones) {
   } else {
     onNivelChange();
   }
-  _modalUsuario.show();
+  getModalUsuario().show();
 }
 
 async function guardarUsuario() {
@@ -285,7 +289,7 @@ async function guardarUsuario() {
     });
     const d = await r.json();
     if (d.ok) {
-      _modalUsuario.hide();
+      getModalUsuario().hide();
       showToast(editando ? 'Usuario actualizado' : 'Usuario creado', 'success');
       cargarUsuarios();
     } else {
