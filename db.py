@@ -144,8 +144,24 @@ _col_cache: dict = {}
 
 
 def init_db(db_path: str):
-    """Crea todas las tablas si no existen."""
+    """Crea todas las tablas si no existen y migra columnas faltantes."""
     conn = sqlite3.connect(db_path)
+
+    # ── Migración: agregar taller_id a tablas existentes que no lo tengan ────
+    _tables_with_taller = [
+        "MATERIALES", "HERRAMIENTAS", "EMPLEADOS", "UBICACIONES",
+        "PROVEEDORES", "PROYECTOS", "MUEBLES", "ORDENES_PRODUCCION",
+        "ETAPAS", "MOV_ALMACEN", "MOV_HERRA", "LOTES", "REG_AVANCE",
+    ]
+    for tbl in _tables_with_taller:
+        try:
+            cols = [r[1] for r in conn.execute(f'PRAGMA table_info("{tbl}")').fetchall()]
+            if cols and "taller_id" not in cols:
+                conn.execute(f'ALTER TABLE "{tbl}" ADD COLUMN taller_id TEXT DEFAULT \'rober_lang\'')
+        except sqlite3.OperationalError:
+            pass  # tabla no existe aún, SCHEMA la creará
+
+    conn.commit()
     conn.executescript(SCHEMA)
     conn.commit()
     conn.close()
